@@ -262,7 +262,7 @@ sphere = [amp_ts athwart along data.cal.range];
 clear amp_ts range
 
 % Remove any echoes that are grossly wrong. Do this by assuming a beamwidth
-% and removing all echoes more than 5 dB off
+% and removing all echoes more than maxdBDiff dB off
 faBW = data.config.beamwidthalongship; % [degrees]
 psBW = data.config.beamwidthathwartship; % [degrees]
 
@@ -277,27 +277,28 @@ amp_sv = amp_sv(:,i);
 % Use the Simrad theoretical beampattern formula
 theoreticalTS = sphere_ts - 6 * ((2*sphere(:,3)/faBW).^2 + (2*sphere(:,2)/psBW).^2) .^ 1.1;
 diffTS = theoreticalTS - sphere(:,1);
-i = find(abs(diffTS) <= trimTo);
+maxdBDiff = 6; % any point more than maxDbDiff from the theoretical will be discarded as outliers
+i = find(abs(diffTS) <= maxbDDiff);
 sphere = sphere(i,:);
 amp_sv = amp_sv(:,i);
 
 % estimate the beam widths and centres
 % do the alongship beamwidth by selecting just those
-% echoes within 0.15 degrees of athwartship
-i_fa = find(abs(sphere(:,2)) < 0.15);
+% echoes within 2% of the athwartship beamangle
+i_fa = find(abs(sphere(:,2)) < 0.02 * psBW);
 try
-    [offset_fa faBW p_coeffs_fa pts_used_fa peak_fa] = fit_beampattern(sphere(i_fa,1), sphere(i_fa,3), 1.0, 4);
+    [offset_fa faBW p_coeffs_fa pts_used_fa peak_fa] = fit_beampattern(sphere(i_fa,1), sphere(i_fa,3), 1.0, 4, faBW);
 catch
     disp('Using a polynomial order of 2 instead of 4. for alongship beamwidth.')
-    [offset_fa faBW p_coeffs_fa pts_used_fa peak_fa] = fit_beampattern(sphere(i_fa,1), sphere(i_fa,3), 1.0, 2);
+    [offset_fa faBW p_coeffs_fa pts_used_fa peak_fa] = fit_beampattern(sphere(i_fa,1), sphere(i_fa,3), 1.0, 2, faBW);
 end
 
 % do the athwartship beamwidth
-i_ps = find(abs(sphere(:,3)) < 0.15);
+i_ps = find(abs(sphere(:,3)) < 0.02 * faBW);
 try
-    [offset_ps psBW p_coeffs_ps pts_used_ps peak_ps] = fit_beampattern(sphere(i_ps,1), sphere(i_ps,2), 1.0, 4);
+    [offset_ps psBW p_coeffs_ps pts_used_ps peak_ps] = fit_beampattern(sphere(i_ps,1), sphere(i_ps,2), 1.0, 4, psBW);
 catch
-    [offset_ps psBW p_coeffs_ps pts_used_ps peak_ps] = fit_beampattern(sphere(i_ps,1), sphere(i_ps,2), 1.0, 2);
+    [offset_ps psBW p_coeffs_ps pts_used_ps peak_ps] = fit_beampattern(sphere(i_ps,1), sphere(i_ps,2), 1.0, 2, psBW);
     disp('Using a polynomial order of 2 instead of 4 for athwartship beamwitdh.')
 end
 mean_peak = mean([peak_fa peak_ps]);
@@ -384,7 +385,7 @@ amp_sv = amp_sv(:,i);
 
 % calc the on-axis value and compare to the expected TS
 % from the calibration sphere
-on_axis = 0.1; % echoes within these many degrees of on-axis are taken to be on axis. 
+on_axis = 0.015 * mean(faBW + psBW); % echoes within 1.5% of the beamangle are taken to be on axis. 
 i = find(phi < on_axis);
 use_corrected = 0;
 if isempty(i)
@@ -484,11 +485,16 @@ disp(['Using a sphere ts of ' num2str(sphere_ts) ' dB'])
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 function [offset, bw, p, pts_used, peak] = fit_beampattern(ts, echoangle, ...
-    limit, polyorder)
+    limit, polyorder, bw)
 % A function to estimate the beamwidth from the given data. ts andechoangle
 % should be the same size and contain the target strength and respective
 % angles. TS points more than limit dB away from the polynomial fit are
 % discarded and a new polynomial fit calculated.
+
+% derive the bounds on the search for a zero-crossing based on the
+% transducer beamwidth
+minAngle = 0.3 * bw/2;
+maxAngle = 1.5 * bw/2;
 
 p = polyfit(echoangle, ts, polyorder);
 shape = @(x) -polyval(p, x);
@@ -496,7 +502,7 @@ offset = fminsearch(shape, 0);
 peak = polyval(p, offset);
 % now find the 3 dB points and calculate the beamwidth
 shape = @(x) polyval(p, x) - peak + 20*log10(2);
-bw = fzero(shape, [1 6]) - fzero(shape, [-6 -1]);
+bw = fzero(shape, [minAngle maxAngle]) - fzero(shape, [-maxAngle -minAngle]);
 
 % idenitfy and ignore points that are too far from the polynomial and
 % recalculate the polynomial.
@@ -507,7 +513,7 @@ offset = fminsearch(shape, 0);
 peak = polyval(p, offset);
 % now find the 3 dB points and calculate the beamwidth
 shape = @(x) polyval(p, x) - peak + 20*log10(2);
-bw = fzero(shape, [1 6]) - fzero(shape, [-6 -1]);
+bw = fzero(shape, [minAngle maxAngle]) - fzero(shape, [-maxAngle -minAngle]);
 pts_used = ii;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
