@@ -278,7 +278,7 @@ amp_sv = amp_sv(:,i);
 theoreticalTS = sphere_ts - 6 * ((2*sphere(:,3)/faBW).^2 + (2*sphere(:,2)/psBW).^2) .^ 1.1;
 diffTS = theoreticalTS - sphere(:,1);
 maxdBDiff = 6; % any point more than maxDbDiff from the theoretical will be discarded as outliers
-i = find(abs(diffTS) <= maxbDDiff);
+i = find(abs(diffTS) <= maxdBDiff);
 sphere = sphere(i,:);
 amp_sv = amp_sv(:,i);
 
