@@ -63,7 +63,7 @@ if nargin > 6
 end
 % tweak the cal params to suit our particular conditions at the time of the
 % calibration
-data = readEKRaw_ConvertPower(data, calParams, 3, {});
+data = readEKRaw_ConvertPower(data, calParams, 3, {'KeepPower', true});
 data = readEKRaw_ConvertAngles(data, calParams);
 
 % keep the cal params around for later
@@ -116,7 +116,7 @@ warning('off','MATLAB:log:logOfZero')
         end
         plot(xi,yi,'wo')
         ii = ii+1;
-        xy(ii,:) = [xi;yi]';
+        xy(ii,:) = [xi;yi]'; %#ok<AGROW>
         if ii > 1
             plot(xy(ii-1:ii,1),xy(ii-1:ii,2),'w')
         end
@@ -132,7 +132,7 @@ warning('off','MATLAB:log:logOfZero')
     % the polygon that the user has just drawn
     num_pings = size(data.pings.Sp, 2); 
     num_samples = size(data.pings.Sp, 1);
-    [X Y] = meshgrid([1:num_pings], [1:num_samples]);
+    [X Y] = meshgrid(1:num_pings, 1:num_samples);
     % find all points in X Y that are inside the user drawn polygon
     in = inpolygon(X, Y, xy(:,1), xy(:,2));
     % get the max and min sample (row) number and use them as bounds for
@@ -201,6 +201,7 @@ warning('on','MATLAB:log:logOfZero')
 %for i = 1:length(d)
     data.pings.Sp = double(data.pings.Sp(:, data.cal.valid));
     data.pings.Sv = double(data.pings.Sv(:, data.cal.valid));
+    data.pings.power = double(data.pings.power(:, data.cal.valid));
     data.pings.alongship = double(data.pings.alongship(:, data.cal.valid));
     data.pings.athwartship = double(data.pings.athwartship(:, data.cal.valid));
     data.cal.peak_pos = data.cal.peak_pos(data.cal.valid);
@@ -214,57 +215,73 @@ process_data(data)
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% This function does the calibration analysis
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function process_data(data)
 
-angle_factor = (data.config.anglesensitivityalongship + data.config.anglesensitivityathwartship)/2; % [dB]
+% Extract and derive some data from the .raw files
 sample_interval = double(data.cal.params.soundvelocity * data.pings.sampleinterval * 0.5); % [m]
-ba_db = data.config.equivalentbeamangle; % [dB re 1 steradian], two-way equivalent beam angle
 sphere_ts = getSphereTS(data.pings.frequency);
 
-% Pick out the peak amplitudes for use later on, and discard the
-% rest. For Sv keep the 9 samples that surround the peak too.
+% These are no longer used, but kept here just in case they are wanted in
+% the future.
+%angle_factor = (data.config.anglesensitivityalongship + data.config.anglesensitivityathwartship)/2; % [dB]
+%ba_db = data.config.equivalentbeamangle; % [dB re 1 steradian], two-way equivalent beam angle
 
+% Pick out the peak amplitudes for use later on, and discard the
+% rest. For Sv and power keep the 9 samples that surround the peak too.
 pp = data.cal.peak_pos;
 tts = zeros(size(pp));
-ssa = zeros(length(pp),9);
+ssv = zeros(length(pp),9);
 range = zeros(length(pp),1);
+along = zeros(size(pp))';
+athwart = zeros(size(pp))';
+power = zeros(length(pp),9);
+
 for j = 1:length(pp)
     tts(j) = data.pings.Sp(pp(j), j);
     along(j) = data.pings.alongship(pp(j), j);
     athwart(j) = data.pings.athwartship(pp(j), j);
     ssv(j,:) = data.pings.Sv(pp(j)-4:pp(j)+4, j);
+    power(j,:) = data.pings.power(pp(j)-4:pp(j)+4, j);
     range(j) = pp(j);
 end
 data.cal.ts = tts;
 data.cal.sv = ssv;
+data.cal.power = power;
 % Make the range the range from the transducer in metres
 data.cal.range = (range + data.cal.start_sample) * sample_interval;
 
 along = along';
 athwart = athwart';
-clear tts ssa range pp
+clear tts ssv range pp power
 
+% Extract some useful data from the data structure for convenience
 amp_ts = data.cal.ts;
 amp_sv = data.cal.sv';
+power = data.cal.power';
+faBW = data.config.beamwidthalongship; % [degrees]
+psBW = data.config.beamwidthathwartship; % [degrees]
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Apply an ES60 triangle wave correction to the data
 %error = 10.^(error/20); % convert from dB to a ratio
      
-% Correct for es60 triangle wave error
 %amp_ts = amp_ts ./ error;
 %amp_sa = amp_sa ./ repmat(error',9,1);
 
 %amp_sa = amp_sa / system_calibration_sa;
 %amp_sa = amp_sa.^2;
+% and power...
+%
 
+% And merge some info into one matrix for convenience
 sphere = [amp_ts athwart along data.cal.range];
-
-% the amp_ts and range data are now in sphere
+% The amp_ts and range data are now in sphere
 clear amp_ts range
 
-% Remove any echoes that are grossly wrong. Do this by assuming a beamwidth
-% and removing all echoes more than maxdBDiff dB off
-faBW = data.config.beamwidthalongship; % [degrees]
-psBW = data.config.beamwidthathwartship; % [degrees]
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Remove any echoes that are grossly wrong.
 
 % trim echoes to those within about 0.7 times the beamwidth
 % This is not exact because we haven't yet calculated the
@@ -273,52 +290,81 @@ trimTo = 0.7 * mean([faBW psBW]) * 0.5;
 i = find(abs(sphere(:,2)) < trimTo & abs(sphere(:,3)) < trimTo);
 sphere = sphere(i,:);
 amp_sv = amp_sv(:,i);
+power = power(:,i);
 
 % Use the Simrad theoretical beampattern formula
-theoreticalTS = sphere_ts - 6 * ((2*sphere(:,3)/faBW).^2 + (2*sphere(:,2)/psBW).^2) .^ 1.1;
+theoreticalTS = sphere_ts - simradBeamCompensation(faBW, psBW, sphere(:,3), sphere(:,3));
 diffTS = theoreticalTS - sphere(:,1);
-maxdBDiff = 6; % any point more than maxDbDiff from the theoretical will be discarded as outliers
+maxdBDiff = 6; % any point more than maxDbDiff from the theoretical will be discarded as an outlier
 i = find(abs(diffTS) <= maxdBDiff);
 sphere = sphere(i,:);
 amp_sv = amp_sv(:,i);
+power = power(:,i);
 
-% estimate the beam widths and centres
-% do the alongship beamwidth by selecting just those
-% echoes within 2% of the athwartship beamangle
-i_fa = find(abs(sphere(:,2)) < 0.02 * psBW);
-try
-    [offset_fa faBW p_coeffs_fa pts_used_fa peak_fa] = fit_beampattern(sphere(i_fa,1), sphere(i_fa,3), 1.0, 4, faBW);
-catch
-    disp('Using a polynomial order of 2 instead of 4. for alongship beamwidth.')
-    [offset_fa faBW p_coeffs_fa pts_used_fa peak_fa] = fit_beampattern(sphere(i_fa,1), sphere(i_fa,3), 1.0, 2, faBW);
-end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Fit the simrad beam pattern to the data. We get estimated beamwidth,
+% offsets, and peak value from this.
+[offset_fa faBW offset_ps psBW pts_used peak_ts] = ...
+    fit_beampattern(sphere(:,1), sphere(:,2), sphere(:,3), 1.0, mean([faBW psBW]));
 
-% do the athwartship beamwidth
-i_ps = find(abs(sphere(:,3)) < 0.02 * faBW);
-try
-    [offset_ps psBW p_coeffs_ps pts_used_ps peak_ps] = fit_beampattern(sphere(i_ps,1), sphere(i_ps,2), 1.0, 4, psBW);
-catch
-    [offset_ps psBW p_coeffs_ps pts_used_ps peak_ps] = fit_beampattern(sphere(i_ps,1), sphere(i_ps,2), 1.0, 2, psBW);
-    disp('Using a polynomial order of 2 instead of 4 for athwartship beamwitdh.')
-end
-mean_peak = mean([peak_fa peak_ps]);
-
-% apply the offsets to the angles
+% apply the offsets to the target angles
 sphere(:,2) = sphere(:,2) - offset_ps;
 sphere(:,3) = sphere(:,3) - offset_fa;
 
-% convert to conical angle
+% convert the angles to conical angle for use later on
 t1 = tan(deg2rad(sphere(:,2)));
 t2 = tan(deg2rad(sphere(:,3)));
 phi = rad2deg(atan(sqrt(t1.*t1 + t2.*t2)));
 theta = rad2deg(atan2(t1, t2));
 
-% compensate for position in beam
+% Calculate beam compensation for each echo
 compensation = simradBeamCompensation(faBW, psBW, sphere(:,3), sphere(:,2));
 
-% do a plot to show the beam pattern
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Filter outliers based on the beam compensated corrected data
+i = find(sphere(:,1)+compensation <= peak_ts+2 & sphere(:,1)+compensation > peak_ts-2);
+sphere = sphere(i,:);
+compensation = compensation(i);
+phi = phi(i);
+theta = theta(i);
+amp_sv = amp_sv(:,i);
+power = power(:,i);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Calculate the mean_ts from echoes that are on-axis
+on_axis = 0.015 * mean(faBW + psBW); % echoes within 1.5% of the beamangle are taken to be on axis. 
+
+% if there are no echoes found within 1.5%, make a note to enlarge the
+% search angle.
+use_corrected = 0;
+if isempty(find(phi < on_axis, 1))
+    use_corrected = 1;
+end
+
+if use_corrected == 0
+    i = find(phi < on_axis);
+    mean_ts_on_axis = 20*log10(mean(10.^(sphere(i,1)/20)));
+    std_ts_on_axis = std(sphere(i,1));
+else
+    % since we're using data from a much larger angle range, apply the beam
+    % pattern compensation to avoid gross errors.
+    i = find(phi < on_axis*5);
+    mean_ts_on_axis = 20*log10(mean(10.^((sphere(i,1)+compensation(i))/20)));
+    std_ts_on_axis = std(sphere(i,1)+compensation(i));
+end
+
+if use_corrected == 0
+    oa = num2str(on_axis);
+else
+    oa = num2str(on_axis*10);
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Produce plots and output text
+
+% Do a contour plot to show the beam pattern
 clf
-[XI YI]=meshgrid([-trimTo:.1:trimTo],[-trimTo:.1:trimTo]);
+[XI YI]=meshgrid(-trimTo:.1:trimTo,-trimTo:.1:trimTo);
 warning('off','MATLAB:griddata:DuplicateDataPoints');
 ZI=griddata(sphere(:,2), sphere(:,3), sphere(:,1),XI,YI);
 warning('on','MATLAB:griddata:DuplicateDataPoints');
@@ -339,6 +385,20 @@ plot(sphere(:,2), sphere(:,3),'+','MarkerSize',2,'MarkerEdgeColor',[.5 .5 .5])
 disp('Press any key to continue')
 pause
 
+% Do a 3d plot of the uncorrected and corrected beampattern
+clf
+surf(XI, YI, ZI)
+warning('off','MATLAB:griddata:DuplicateDataPoints');
+ZI=griddata(sphere(:,2), sphere(:,3), sphere(:,1)+compensation,XI,YI);
+warning('on','MATLAB:griddata:DuplicateDataPoints');
+hold on
+surf(XI, YI, ZI)
+zlabel('TS (dB re 1m^2)')
+xlabel('Port/stbd angle (\circ)')
+ylabel('Fore/aft angle (\circ)')
+pause
+
+% Do a plot of the sphere range during the calibration
 clf
 plot(sphere(:,4))
 disp(['Mean sphere range = ' num2str(mean(sphere(:,4))) ...
@@ -346,98 +406,104 @@ disp(['Mean sphere range = ' num2str(mean(sphere(:,4))) ...
 disp('The sphere range during the calibration. Press any key to continue')
 pause
 
-% do a plot for a calibration report
+% Do a plot of uncompensated and compensated echoes for the ps and fa axes.
+% Useful for the calibration report
 clf
 subplot(2,1,1)
+i_fa = find(abs(sphere(:,2)) < 0.015*psBW);
 ss = sphere(i_fa,:);
 comp_fa = compensation(i_fa);
-plot(ss(pts_used_fa,3), ss(pts_used_fa,1), '.')
+plot(ss(:,3), ss(:,1), '.')
 hold on
-plot(ss(pts_used_fa,3), ss(pts_used_fa,1)+comp_fa(pts_used_fa), 'r.')
-x = [-trimTo:.1:trimTo];
+plot(ss(:,3), ss(:,1)+comp_fa, 'r.')
+x = -trimTo:.1:trimTo;
 beam = simradBeamCompensation(faBW, psBW, x, 0);
-plot(x, mean_peak-beam, 'k')
+plot(x, peak_ts-beam, 'k')
 xlabel('Fore/aft angle (\circ)')
 ylabel('Sphere target strength (dB re 1m^2)')
 
 subplot(2,1,2)
+i_ps = find(abs(sphere(:,3)) < 0.015*faBW);
 ss = sphere(i_ps,:);
 comp_ps = compensation(i_ps);
-plot(ss(pts_used_ps,2), ss(pts_used_ps,1), '.')
+plot(ss(:,2), ss(:,1), '.')
 hold on
-plot(ss(pts_used_ps,2), ss(pts_used_ps,1)+comp_ps(pts_used_ps), 'r.')
+plot(ss(:,2), ss(:,1)+comp_ps, 'r.')
 beam = simradBeamCompensation(faBW, psBW, 0, x);
-plot(x, mean_peak-beam, 'k')
+plot(x, peak_ts-beam, 'k')
 xlabel('Port/starboard angle (\circ)')
 ylabel('Sphere target strength (dB re 1m^2)')
 disp('This figure is intended for including in the calibration report')
 disp('Press any key to continue')
 pause
 
-% and do some filtering of outliers based on
-% the corrected data
-i = find(sphere(:,1)+compensation <= -40 & sphere(:,1)+compensation > -48);
-sphere = sphere(i,:);
-compensation = compensation(i);
-phi = phi(i);
-theta = theta(i);
-amp_sv = amp_sv(:,i);
-
-% calc the on-axis value and compare to the expected TS
-% from the calibration sphere
-on_axis = 0.015 * mean(faBW + psBW); % echoes within 1.5% of the beamangle are taken to be on axis. 
-i = find(phi < on_axis);
-use_corrected = 0;
-if isempty(i)
-    % use corrected echoes within 1on_axis * 10 deg of centre instead
-    i = find(phi < on_axis*10);
-    use_corrected = 1;
-end
-
-if use_corrected == 0
-    mean_ts = 20*log10(mean(10.^(sphere(i,1)/20)));
-else
-    mean_ts = 20*log10(mean(10.^((sphere(i,1)+compensation(i))/20)));
-end
-% Filter again a bit more closely now that we know the target sphere echo
-% strength as seen by the sounder
-i = find(sphere(:,1)+compensation <= mean_ts+2 & sphere(:,1)+compensation > mean_ts-2);
-sphere = sphere(i,:);
-compensation = compensation(i);
-phi = phi(i);
-theta = theta(i);
-amp_sv = amp_sv(:,i);
-
-% and recalculate the mean_ts
-if use_corrected == 0
-    i = find(phi < on_axis);
-    mean_ts = 20*log10(mean(10.^(sphere(i,1)/20)));
-    std_ts = std(sphere(i,1));
-else
-    i = find(phi < on_axis*10);
-    mean_ts = 20*log10(mean(10.^((sphere(i,1)+compensation(i))/20)));
-    std_ts = std(sphere(i,1)+compensation(i));
-end
-
-if use_corrected == 0
-    oa = num2str(on_axis);
-else
-    oa = num2str(on_axis*10);
-end
-disp(['Mean ts within ' oa ' deg of centre = ' num2str(mean_ts) ' dB'])
-disp(['Std of ts within ' oa ' deg of centre = ' num2str(std_ts) ' dB'])
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Print out some calibration results
+disp(' ')
+disp(['Mean ts within ' oa ' deg of centre = ' num2str(mean_ts_on_axis) ' dB'])
+disp(['Std of ts within ' oa ' deg of centre = ' num2str(std_ts_on_axis) ' dB'])
 disp(['Number of echoes within ' oa ' deg of centre = ' num2str(length(sphere(i,1)))])
-
-outby = sphere_ts - mean_ts;
+disp(['On axis TS from beam fitting = ' num2str(peak_ts) ' dB.'])
+disp(['The sphere ts is ' num2str(sphere_ts) ' dB'])
+outby = sphere_ts - peak_ts;
 if outby > 0
-    disp(['Ex60 is reading ' num2str(outby) ' dB too low'])
+    disp(['Hence Ex60 is reading ' num2str(outby) ' dB too low'])
 else
-    disp(['Ex60 is reading ' num2str(abs(outby)) ' dB too high'])
+    disp(['Hence Ex60 is reading ' num2str(abs(outby)) ' dB too high'])
 end
 
-disp(['Add ' num2str(-outby/2) ' dB to G_o'])
+disp(['So add ' num2str(-outby/2) ' dB to G_o'])
 
-% plot the data and results
+disp(['G_o from .raw file is ' num2str(data.config.gain) ' dB'])
+disp(' ')
+disp(['So the calibrated G_o = ' num2str(data.config.gain-outby/2) ' dB'])
+disp(' ')
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Calculate the sa correction value informed by draft formulae
+% in Tody Jarvis's WGFAST calibration report.
+%
+% This is a litte hard to represent in text, so refer to Echoview help for
+% more details than are presented here.
+% The Sa correction is a value that corrects for the received pulse having
+% less energy in it than that nominal, transmitted pulse. The formula for
+% Sv (see Echoview) includes a term -10log10(Teff) (where Teff is the
+% effective pulse length). We don't have Teff, so need to calculate it. We
+% do have Tnom (the nominal pulse length) and just need to scale Tnom so
+% that it gives the same result as the integral of Teff:
+%
+% Teff = Tnom * alpha
+% alpha = Teff / Tnom
+% alpha = Int(P.dt) / (Pmax * Tnom)
+%  where P is the power measurements throughout the echo, 
+%  Pmax is the max power in the echo, and dt the time
+%  between P measurements. This is simply the ratio of the area under the
+%  nominal pulse and the area under the actual pulse.
+%
+% For the EK60, dt = Tnom/4 (it samples 4 times every pulse length)
+% So, alpha = Sum(P * Tnom) / (4 * Pmax * Tnom)
+%     alpha = Sum(P) / (4 * Pmax)
+%
+% However, Echoview, etc, expect the correction factor to be in dB, and
+% furthermore is used as (10log10(Tnom) + 2 * Sa). Hence
+% Sa = 0.5 * 10log10(alpha)
+
+% Work in the linear domain to calculate the scale factor to convert the
+% nominal pulse length into the effective pulse length
+alpha = mean( (sum(10.^(power(:,i)/10)) ) ./ (4 * max(10.^(power(:,i)/10)) ));
+
+
+% And convert that to dB, taking account of how this ratio is used as 2Sa
+% everywhere (i.e., it needs to be halved after converting to dB).
+sa_correction = 5 * log10(alpha);
+disp(' ')
+disp(['So sa correction = ' num2str(sa_correction) ' dB'])
+disp(' ')
+disp(['(the effective pulse length = ' num2str(alpha) ' * nominal pulse length)'])
+disp(' ')
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Plot all uncompensated and compensated echoes
 clf
 plot(phi, sphere(:,1), '.')
 xlabel('Angle off axis (degrees)')
@@ -446,74 +512,61 @@ hold on
 plot(phi, sphere(:,1)+compensation, 'r.')
 xlabel('Angle off axis (degrees)')
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Print out some more cal results
 disp(['Fore/aft beamwidth = ' num2str(faBW) ' degrees'])
-disp(['Fore/aft offset = ' num2str(offset_fa) ' degrees'])
+disp(['Fore/aft offset = ' num2str(offset_fa) ' degrees (to be subtracted from EK60 angles)'])
 disp(['Port/stbd beamwidth = ' num2str(psBW) ' degrees'])
-disp(['Port/stbd offset = ' num2str(offset_ps) ' degrees'])
+disp(['Port/stbd offset = ' num2str(offset_ps) ' degrees (to be subtracted from EK60 angles)'])
 
 disp(['Results obtained from ' num2str(length(sphere(:,1))) ' sphere echoes'])
 disp(['Using c = ' num2str(data.cal.params.soundvelocity) ' m/s'])
 disp(['Using alpha = ' num2str(data.cal.params.absorptioncoefficient*1000) ' dB/km'])
-% Calculate the sa correction value
 
-% also calculate the integral of the sphere echoes
-r_0 = 1; % [m], reference range
-
-ba = 10^(ba_db/10); % two-way equivalent beam angle, linear units
-sigma_bs = 10^(sphere_ts/10); % [m^2], sphere ts 
-sa_theory = (4*pi*r_0^2*sigma_bs./(ba * sphere(:,4).^2))';
-
-% for sa, just use echoes within on_axis degrees of the beam centre
-sa_measured = 4*pi*r_0^2 * sum(10.^(amp_sv(:,i)/10)) * sample_interval;
-
-sa_correction = sa_measured ./ sa_theory(i);
-sa_correction = 10*log10(mean(sa_correction)) / 2;
-% correct for incorrect G_0
-sa_correction = sa_correction + outby/2;
-
-disp(['sa correction = ' num2str(sa_correction) ' dB'])
-
-% calculate the RMS fit to the beam model
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Calculate the RMS fit to the beam model
 fit_out_to = mean(psBW + faBW) * 0.5; % fit out to half the beamangle
 i = find(phi <= fit_out_to);
-beam_model = mean_ts - compensation;
-rms_fit = sqrt(mean((sphere(i,1) - beam_model(i)).^2));
+beam_model = peak_ts - compensation;
+% Note: FAST doc halves the difference, otherwise is the same as here. I
+% think that the draft FAST report is wrong.
+rms_fit = sqrt( mean( (sphere(i,1) - beam_model(i)).^2 ) );
 disp(['RMS of fit to beam model out to ' num2str(fit_out_to) ' degrees = ' num2str(rms_fit) ' dB'])
 
-disp(['Using a sphere ts of ' num2str(sphere_ts) ' dB'])
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function [offset_fa, bw_fa, offset_ps, bw_ps, pts_used, peak] ...
+    = fit_beampattern(ts, echoangle_ps, echoangle_fa, limit, bw)
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-function [offset, bw, p, pts_used, peak] = fit_beampattern(ts, echoangle, ...
-    limit, polyorder, bw)
-% A function to estimate the beamwidth from the given data. ts andechoangle
+% A function to estimate the beamwidth from the given data. ts and echoangle
 % should be the same size and contain the target strength and respective
-% angles. TS points more than limit dB away from the polynomial fit are
-% discarded and a new polynomial fit calculated.
+% angles. TS points more than limit dB away from the fit are
+% discarded and a new fit calculated.
 
-% derive the bounds on the search for a zero-crossing based on the
-% transducer beamwidth
-minAngle = 0.3 * bw/2;
-maxAngle = 1.5 * bw/2;
+% use the Simrad beam compensation equation and fit it to the data
+% define a function that can be minimised to find the beamwidth and angle
+% offset (also finds the best max amplitude).
+% x(1) is the fa beamwidth, x(2) the ps beamwidth, x(3) the fa offset, 
+% x(4) the ps offset and x(5) the ts on beam-axis
+shape = @(x) sum((ts - x(5) + simradBeamCompensation(x(1), x(2), echoangle_fa-x(3), echoangle_ps-x(4))) .^2);
+result = fminsearch(shape, [bw, bw, 0.0, 0.0, max(ts)]);
+bw_fa = result(1);
+bw_ps = result(2);
+offset_fa = result(3);
+offset_ps = result(4);
+peak = result(5);
 
-p = polyfit(echoangle, ts, polyorder);
-shape = @(x) -polyval(p, x);
-offset = fminsearch(shape, 0);
-peak = polyval(p, offset);
-% now find the 3 dB points and calculate the beamwidth
-shape = @(x) polyval(p, x) - peak + 20*log10(2);
-bw = fzero(shape, [minAngle maxAngle]) - fzero(shape, [-maxAngle -minAngle]);
-
-% idenitfy and ignore points that are too far from the polynomial and
-% recalculate the polynomial.
-ii = find(abs(ts - polyval(p, echoangle)) <= limit);
-p = polyfit(echoangle(ii), ts(ii), polyorder);
-shape = @(x) -polyval(p, x);
-offset = fminsearch(shape, 0);
-peak = polyval(p, offset);
-% now find the 3 dB points and calculate the beamwidth
-shape = @(x) polyval(p, x) - peak + 20*log10(2);
-bw = fzero(shape, [minAngle maxAngle]) - fzero(shape, [-maxAngle -minAngle]);
+% idenitfy and ignore points that are too far from the fit and recalculate
+% (removes some sensitivity to outliers)
+% find all points within limit dB of the theoretical beam patter
+ii = find(abs(ts - peak + simradBeamCompensation(bw_fa, bw_ps, echoangle_fa-offset_fa, echoangle_ps-offset_ps)) < limit);
+% a new function to minimise that only uses the points from ii
+shape = @(x) sum((ts(ii) - x(5) + simradBeamCompensation(x(1), x(2), echoangle_fa(ii)+x(3), echoangle_ps(ii)+x(4))) .^2);
+result = fminsearch(shape, [bw_fa, bw_ps, offset_fa, offset_ps, peak]);
+bw_fa = result(1);
+bw_ps = result(2);
+offset_fa = result(3);
+offset_ps = result(4);
+peak = result(5);
 pts_used = ii;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -523,7 +576,8 @@ function compensation = simradBeamCompensation(faBW, psBW, faAngle, psAngle)
 
 part1 = 2*faAngle/faBW;
 part2 = 2*psAngle/psBW;
-compensation = 6 * (part1.^2 + part2.^2) .^ 1.1;
+
+compensation = 6.0206 * (part1.^2 + part2.^2 - 0.18*part1.^2.*part2.^2);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Get a nominal ts for the given frequency
 function sphere_ts = getSphereTS(freq)
