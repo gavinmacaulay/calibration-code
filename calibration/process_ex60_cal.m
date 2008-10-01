@@ -27,15 +27,18 @@ function process_ex60_cal(rawfilenames, save_filename, ...
 % echogram. Try a wide range first and then narrow it down.
 %
 % sphere_ts is the ts of the sphere in dB. This is optional, and defaults
-% to -42.4 if not given
+% to a frequency specific value if not given
 %
 
 % Written by G Macaulay
 % $Id$
 
+scc_revision = '$Revision: 6434';
+scc_revision = strrep(scc_revision, '$Revision: ', '');
+
 if nargin == 1
     load(rawfilenames) % not reall rawfilename, but rather save_filename
-     process_data(data)
+     process_data(data, scc_revision)
     return
 end
 
@@ -210,14 +213,14 @@ warning('on','MATLAB:log:logOfZero')
 %end
 
 save(save_filename, 'data')
-process_data(data)
+process_data(data, scc_revision)
 
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % This function does the calibration analysis
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function process_data(data)
+function process_data(data, scc_revision)
 
 % Extract and derive some data from the .raw files
 sample_interval = double(data.cal.params.soundvelocity * data.pings.sampleinterval * 0.5); % [m]
@@ -283,19 +286,21 @@ clear amp_ts range
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Remove any echoes that are grossly wrong.
 
-% trim echoes to those within about 0.7 times the beamwidth
+% trim echoes to those within a little more than the 3 dB beamwidth
 % This is not exact because we haven't yet calculated the
 % beam centre offsets, but it will do for the moment
-trimTo = 0.7 * mean([faBW psBW]) * 0.5;
+trimTo = 1.2 * mean([faBW psBW]) * 0.5;
 i = find(abs(sphere(:,2)) < trimTo & abs(sphere(:,3)) < trimTo);
 sphere = sphere(i,:);
 amp_sv = amp_sv(:,i);
 power = power(:,i);
 
-% Use the Simrad theoretical beampattern formula
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Use the Simrad theoretical beampattern formula to trim echoes that are
+% grossly wrong
+maxdBDiff = 6; % any point more than maxDbDiff from the theoretical will be discarded as an outlier
 theoreticalTS = sphere_ts - simradBeamCompensation(faBW, psBW, sphere(:,3), sphere(:,3));
 diffTS = theoreticalTS - sphere(:,1);
-maxdBDiff = 6; % any point more than maxDbDiff from the theoretical will be discarded as an outlier
 i = find(abs(diffTS) <= maxdBDiff);
 sphere = sphere(i,:);
 amp_sv = amp_sv(:,i);
@@ -322,7 +327,9 @@ compensation = simradBeamCompensation(faBW, psBW, sphere(:,3), sphere(:,2));
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Filter outliers based on the beam compensated corrected data
-i = find(sphere(:,1)+compensation <= peak_ts+2 & sphere(:,1)+compensation > peak_ts-2);
+maxdBDiff = 1;
+i = find(sphere(:,1)+compensation <= peak_ts+maxdBDiff & ...
+    sphere(:,1)+compensation > peak_ts-maxdBDiff);
 sphere = sphere(i,:);
 compensation = compensation(i);
 phi = phi(i);
@@ -372,8 +379,8 @@ contourf(XI,YI,ZI)
 disp('This figure is for a visual quality check of the beam pattern')
 axis equal
 grid
-xlabel('port/starboard angle')
-ylabel('fore/aft angle')
+xlabel('port/starboard angle (\circ)')
+ylabel('fore/aft angle (\circ)')
 colorbar
 disp('Press a key to add the sphere positions to this figure')
 pause
@@ -382,6 +389,7 @@ pause
 % used a marker that does (the available . sizes are not right).
 hold on
 plot(sphere(:,2), sphere(:,3),'+','MarkerSize',2,'MarkerEdgeColor',[.5 .5 .5])
+axis equal
 disp('Press any key to continue')
 pause
 
@@ -396,6 +404,7 @@ surf(XI, YI, ZI)
 zlabel('TS (dB re 1m^2)')
 xlabel('Port/stbd angle (\circ)')
 ylabel('Fore/aft angle (\circ)')
+disp('Press any key to continue')
 pause
 
 % Do a plot of the sphere range during the calibration
@@ -403,7 +412,8 @@ clf
 plot(sphere(:,4))
 disp(['Mean sphere range = ' num2str(mean(sphere(:,4))) ...
     ' m, std = ' num2str(std(sphere(:,4))) ' m.'])
-disp('The sphere range during the calibration. Press any key to continue')
+disp('The sphere range during the calibration.')
+disp('Press any key to continue')
 pause
 
 % Do a plot of uncompensated and compensated echoes for the ps and fa axes.
@@ -434,6 +444,13 @@ plot(x, peak_ts-beam, 'k')
 xlabel('Port/starboard angle (\circ)')
 ylabel('Sphere target strength (dB re 1m^2)')
 disp('This figure is intended for including in the calibration report')
+disp('Press any key to continue')
+pause
+
+% Do a plot of the compensated and uncompensated echoes at a selection of
+% angles, similar to what one can get from the Simrad calibration program
+tol = 0.1; % [degrees]
+plotBeamSlices(sphere, trimTo, faBW, psBW, peak_ts, tol)
 disp('Press any key to continue')
 pause
 
@@ -525,13 +542,15 @@ disp(['Using alpha = ' num2str(data.cal.params.absorptioncoefficient*1000) ' dB/
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Calculate the RMS fit to the beam model
-fit_out_to = mean(psBW + faBW) * 0.5; % fit out to half the beamangle
+fit_out_to = mean([psBW faBW]) * 0.5; % fit out to half the beamangle
 i = find(phi <= fit_out_to);
 beam_model = peak_ts - compensation;
 % Note: FAST doc halves the difference, otherwise is the same as here. I
 % think that the draft FAST report is wrong.
 rms_fit = sqrt( mean( (sphere(i,1) - beam_model(i)).^2 ) );
 disp(['RMS of fit to beam model out to ' num2str(fit_out_to) ' degrees = ' num2str(rms_fit) ' dB'])
+
+disp(['Produced using version ' scc_revision ' of this Matlab function'])
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function [offset_fa, bw_fa, offset_ps, bw_ps, pts_used, peak] ...
@@ -560,7 +579,7 @@ peak = result(5);
 % find all points within limit dB of the theoretical beam patter
 ii = find(abs(ts - peak + simradBeamCompensation(bw_fa, bw_ps, echoangle_fa-offset_fa, echoangle_ps-offset_ps)) < limit);
 % a new function to minimise that only uses the points from ii
-shape = @(x) sum((ts(ii) - x(5) + simradBeamCompensation(x(1), x(2), echoangle_fa(ii)+x(3), echoangle_ps(ii)+x(4))) .^2);
+shape = @(x) sum((ts(ii) - x(5) + simradBeamCompensation(x(1), x(2), echoangle_fa(ii)-x(3), echoangle_ps(ii)-x(4))) .^2);
 result = fminsearch(shape, [bw_fa, bw_ps, offset_fa, offset_ps, peak]);
 bw_fa = result(1);
 bw_ps = result(2);
@@ -596,3 +615,108 @@ switch freq
     otherwise
         disp(['Sphere TS not known for a freq of ' num2str(freq) ' Hz'])
 end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+function [phi, theta] = simradAnglesToSpherical(fa, ps)
+
+% convert the angles to conical angle.
+t1 = tan(deg2rad(ps));
+t2 = tan(deg2rad(fa));
+phi = rad2deg(atan(sqrt(t1.*t1 + t2.*t2)));
+theta = rad2deg(atan2(t1, t2));
+
+% Convert the angles so that we get negative phi's to allow for plotting of
+% complete beam pattern slice arcs
+i = find(theta < 0);
+phi(i) = -phi(i);
+theta(i) = 180+theta(i);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function plotBeamSlices(sphere, trimTo, faBW, psBW, peak_ts, tol)
+% Produce a plot of the sphere echoes and the fitted beam pattern at 4
+% slices through the beam
+%
+% trimTo is the angle (degrees) to plot out to
+% tol is the angle (degrees) to take sphere echoes from for each slice
+
+% suplot1 is a function that produces better looking subplots
+subplot1(2,2)
+
+% 0 degrees
+subplot1(1)
+i = find(abs(sphere(:,2)) < tol);
+plot(sphere(i,3), sphere(i,1),'.')
+hold on
+x = -trimTo:.1:trimTo;
+plot(x, peak_ts - simradBeamCompensation(faBW, psBW, x, 0), 'k');
+
+% 45 degrees. Needs special treatment to get angle off axis from the fa and
+% ps angles
+subplot1(2)
+i = find(abs(sphere(:,2) - sphere(:,3)) < tol);
+[phi_x theta_x] = simradAnglesToSpherical(sphere(i,3), sphere(i,2));
+s = sphere(i,1);
+i = find(abs(phi_x) <= trimTo);
+plot(phi_x(i), s(i), '.')
+hold on
+[phi_x theta_x] = simradAnglesToSpherical(x, x);
+beam = peak_ts - simradBeamCompensation(faBW, psBW, x, x);
+i = find(abs(phi_x) <= trimTo);
+plot(phi_x(i), beam(i), 'k');
+
+% 90 degrees
+subplot1(3)
+i = find(abs(sphere(:,3)) < tol);
+plot(sphere(i,2), sphere(i,1),'.')
+hold on
+x = -trimTo:.1:trimTo;
+plot(x, peak_ts - simradBeamCompensation(faBW, psBW, 0, x), 'k');
+xlabel('Angle (\circ) off normal')
+ylabel('TS (dB re 1m^2)')
+
+% 135 degrees. Needs special treatment to get angle off axis from the fa and
+% ps angles
+subplot1(4)
+i = find(abs(-sphere(:,2) - sphere(:,3)) < tol);
+[phi_x theta_x] = simradAnglesToSpherical(sphere(i,3), sphere(i,2));
+s = sphere(i,1);
+i = find(abs(phi_x) <= trimTo);
+plot(phi_x(i), s(i),'.')
+hold on
+[phi_x theta_x] = simradAnglesToSpherical(-x, x);
+beam = peak_ts - simradBeamCompensation(faBW, psBW, -x, x);
+i = find(abs(phi_x) <= trimTo);
+plot(phi_x(i), beam(i), 'k');
+
+% make the y-axis limits the same for all 4 subplots
+limits = [1000 -1000 1000 -1000];
+for i = 1:4
+    subplot1(i)
+    lim = axis;
+    limits(1) = min(limits(1), lim(1));
+    limits(2) = max(limits(2), lim(2));
+    limits(3) = min(limits(3), lim(3));
+    limits(4) = max(limits(4), lim(4));
+end
+% expand the axis limits so that axis labels don't overlap
+limits(1) = limits(1) - .2; % x-axis, units of degrees
+limits(2) = limits(2) + .2; % x-axis, units of degrees
+limits(3) = limits(3) - 1; % y-axis, units of dB
+limits(4) = limits(4) + 1; % y-axis, units of dB
+for i = 1:4
+    subplot1(i)
+    axis(limits)
+end
+
+% add a line to each subplot to indicate which angle the slice is for
+% Work out the position for the centre of the angled line
+pos = [limits(1)+0.06*(limits(2)-limits(1)) limits(4) - 0.1*(limits(4)-limits(3))];
+subplot1(1)
+text(pos(1), pos(2), '0\circ')
+subplot1(2)
+text(pos(1), pos(2), '45\circ')
+subplot1(3)
+text(pos(1), pos(2), '90\circ')
+subplot1(4)
+text(pos(1), pos(2), '135\circ')
+
