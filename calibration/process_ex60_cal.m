@@ -370,11 +370,32 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Produce plots and output text
 
+% The calibration results
+disp(' ')
+disp(['Mean ts within ' oa ' deg of centre = ' num2str(mean_ts_on_axis) ' dB'])
+disp(['Std of ts within ' oa ' deg of centre = ' num2str(std_ts_on_axis) ' dB'])
+disp(['Number of echoes within ' oa ' deg of centre = ' num2str(length(sphere(i,1)))])
+disp(['On axis TS from beam fitting = ' num2str(peak_ts) ' dB.'])
+disp(['The sphere ts is ' num2str(sphere_ts) ' dB'])
+outby = sphere_ts - peak_ts;
+if outby > 0
+    disp(['Hence Ex60 is reading ' num2str(outby) ' dB too low'])
+else
+    disp(['Hence Ex60 is reading ' num2str(abs(outby)) ' dB too high'])
+end
+
+disp(['So add ' num2str(-outby/2) ' dB to G_o'])
+
+disp(['G_o from .raw file is ' num2str(data.config.gain) ' dB'])
+disp(' ')
+disp(['So the calibrated G_o = ' num2str(data.config.gain-outby/2) ' dB'])
+disp(' ')
+
 % Do a contour plot to show the beam pattern
 clf
 [XI YI]=meshgrid(-trimTo:.1:trimTo,-trimTo:.1:trimTo);
 warning('off','MATLAB:griddata:DuplicateDataPoints');
-ZI=griddata(sphere(:,2), sphere(:,3), sphere(:,1),XI,YI);
+ZI=griddata(sphere(:,2), sphere(:,3), sphere(:,1)+outby,XI,YI);
 warning('on','MATLAB:griddata:DuplicateDataPoints');
 contourf(XI,YI,ZI)
 disp('This figure is for a visual quality check of the beam pattern')
@@ -398,7 +419,7 @@ pause
 clf
 surf(XI, YI, ZI)
 warning('off','MATLAB:griddata:DuplicateDataPoints');
-ZI=griddata(sphere(:,2), sphere(:,3), sphere(:,1)+compensation,XI,YI);
+ZI=griddata(sphere(:,2), sphere(:,3), sphere(:,1)+compensation+outby,XI,YI);
 warning('on','MATLAB:griddata:DuplicateDataPoints');
 hold on
 surf(XI, YI, ZI)
@@ -417,65 +438,11 @@ disp('The sphere range during the calibration.')
 disp('Press any key to continue')
 pause
 
-% Do a plot of uncompensated and compensated echoes for the ps and fa axes.
-% Useful for the calibration report
-clf
-subplot(2,1,1)
-i_fa = find(abs(sphere(:,2)) < 0.015*psBW);
-ss = sphere(i_fa,:);
-comp_fa = compensation(i_fa);
-plot(ss(:,3), ss(:,1), '.')
-hold on
-plot(ss(:,3), ss(:,1)+comp_fa, 'r.')
-x = -trimTo:.1:trimTo;
-beam = simradBeamCompensation(faBW, psBW, x, 0);
-plot(x, peak_ts-beam, 'k')
-xlabel('Fore/aft angle (\circ)')
-ylabel('Sphere target strength (dB re 1m^2)')
-
-subplot(2,1,2)
-i_ps = find(abs(sphere(:,3)) < 0.015*faBW);
-ss = sphere(i_ps,:);
-comp_ps = compensation(i_ps);
-plot(ss(:,2), ss(:,1), '.')
-hold on
-plot(ss(:,2), ss(:,1)+comp_ps, 'r.')
-beam = simradBeamCompensation(faBW, psBW, 0, x);
-plot(x, peak_ts-beam, 'k')
-xlabel('Port/starboard angle (\circ)')
-ylabel('Sphere target strength (dB re 1m^2)')
-disp('This figure is intended for including in the calibration report')
-disp('Press any key to continue')
-pause
-
 % Do a plot of the compensated and uncompensated echoes at a selection of
 % angles, similar to what one can get from the Simrad calibration program
 tol = 0.1; % [degrees]
-plotBeamSlices(sphere, trimTo, faBW, psBW, peak_ts, tol)
-disp('Press any key to continue')
-pause
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Print out some calibration results
-disp(' ')
-disp(['Mean ts within ' oa ' deg of centre = ' num2str(mean_ts_on_axis) ' dB'])
-disp(['Std of ts within ' oa ' deg of centre = ' num2str(std_ts_on_axis) ' dB'])
-disp(['Number of echoes within ' oa ' deg of centre = ' num2str(length(sphere(i,1)))])
-disp(['On axis TS from beam fitting = ' num2str(peak_ts) ' dB.'])
-disp(['The sphere ts is ' num2str(sphere_ts) ' dB'])
-outby = sphere_ts - peak_ts;
-if outby > 0
-    disp(['Hence Ex60 is reading ' num2str(outby) ' dB too low'])
-else
-    disp(['Hence Ex60 is reading ' num2str(abs(outby)) ' dB too high'])
-end
-
-disp(['So add ' num2str(-outby/2) ' dB to G_o'])
-
-disp(['G_o from .raw file is ' num2str(data.config.gain) ' dB'])
-disp(' ')
-disp(['So the calibrated G_o = ' num2str(data.config.gain-outby/2) ' dB'])
-disp(' ')
+plotBeamSlices(sphere, outby, trimTo, faBW, psBW, peak_ts, tol)
+disp('This figure is intended for including in the calibration report')
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Calculate the sa correction value informed by draft formulae
@@ -519,16 +486,6 @@ disp(['So sa correction = ' num2str(sa_correction) ' dB'])
 disp(' ')
 disp(['(the effective pulse length = ' num2str(alpha) ' * nominal pulse length)'])
 disp(' ')
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Plot all uncompensated and compensated echoes
-clf
-plot(phi, sphere(:,1), '.')
-xlabel('Angle off axis (degrees)')
-ylabel('Sphere target strength')
-hold on
-plot(phi, sphere(:,1)+compensation, 'r.')
-xlabel('Angle off axis (degrees)')
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Print out some more cal results
@@ -633,7 +590,7 @@ phi(i) = -phi(i);
 theta(i) = 180+theta(i);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function plotBeamSlices(sphere, trimTo, faBW, psBW, peak_ts, tol)
+function plotBeamSlices(sphere, outby, trimTo, faBW, psBW, peak_ts, tol)
 % Produce a plot of the sphere echoes and the fitted beam pattern at 4
 % slices through the beam
 %
@@ -646,32 +603,32 @@ subplot1(2,2)
 % 0 degrees
 subplot1(1)
 i = find(abs(sphere(:,2)) < tol);
-plot(sphere(i,3), sphere(i,1),'.')
+plot(sphere(i,3), sphere(i,1)+outby,'.')
 hold on
 x = -trimTo:.1:trimTo;
-plot(x, peak_ts - simradBeamCompensation(faBW, psBW, x, 0), 'k');
+plot(x, peak_ts + outby - simradBeamCompensation(faBW, psBW, x, 0), 'k');
 
 % 45 degrees. Needs special treatment to get angle off axis from the fa and
 % ps angles
 subplot1(2)
 i = find(abs(sphere(:,2) - sphere(:,3)) < tol);
 [phi_x theta_x] = simradAnglesToSpherical(sphere(i,3), sphere(i,2));
-s = sphere(i,1);
+s = sphere(i,1) + outby;
 i = find(abs(phi_x) <= trimTo);
 plot(phi_x(i), s(i), '.')
 hold on
 [phi_x theta_x] = simradAnglesToSpherical(x, x);
-beam = peak_ts - simradBeamCompensation(faBW, psBW, x, x);
+beam = peak_ts + outby - simradBeamCompensation(faBW, psBW, x, x);
 i = find(abs(phi_x) <= trimTo);
 plot(phi_x(i), beam(i), 'k');
 
 % 90 degrees
 subplot1(3)
 i = find(abs(sphere(:,3)) < tol);
-plot(sphere(i,2), sphere(i,1),'.')
+plot(sphere(i,2), sphere(i,1)+outby,'.')
 hold on
 x = -trimTo:.1:trimTo;
-plot(x, peak_ts - simradBeamCompensation(faBW, psBW, 0, x), 'k');
+plot(x, peak_ts + outby - simradBeamCompensation(faBW, psBW, 0, x), 'k');
 xlabel('Angle (\circ) off normal')
 ylabel('TS (dB re 1m^2)')
 
@@ -680,12 +637,12 @@ ylabel('TS (dB re 1m^2)')
 subplot1(4)
 i = find(abs(-sphere(:,2) - sphere(:,3)) < tol);
 [phi_x theta_x] = simradAnglesToSpherical(sphere(i,3), sphere(i,2));
-s = sphere(i,1);
+s = sphere(i,1) + outby;
 i = find(abs(phi_x) <= trimTo);
 plot(phi_x(i), s(i),'.')
 hold on
 [phi_x theta_x] = simradAnglesToSpherical(-x, x);
-beam = peak_ts - simradBeamCompensation(faBW, psBW, -x, x);
+beam = peak_ts + outby - simradBeamCompensation(faBW, psBW, -x, x);
 i = find(abs(phi_x) <= trimTo);
 plot(phi_x(i), beam(i), 'k');
 
