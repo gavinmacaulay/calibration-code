@@ -33,8 +33,9 @@ function process_ex60_cal(rawfilenames, save_filename, ...
 % Written by G Macaulay
 % $Id$
 
-scc_revision = '$Revision: 6434';
-scc_revision = strrep(scc_revision, '$Revision: ', '');
+scc_revision = '$Revision$';
+% pick out just the number
+scc_revision = regexprep(scc_revision, '[^\d]', '');
 
 if nargin == 1
     load(rawfilenames) % not reall rawfilename, but rather save_filename
