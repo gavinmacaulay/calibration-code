@@ -1,6 +1,6 @@
 function error = es60_error(ping_nums)
 
-%
+% Calculates the form of the es60 triangle wave error.
 %
 
 % $Id$
