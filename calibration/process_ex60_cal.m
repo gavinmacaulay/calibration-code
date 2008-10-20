@@ -1,8 +1,8 @@
 function process_ex60_cal(rawfilenames, save_filename, ...
-    es60_zero_error, start_sample, stop_sample, freq, c, alpha)
+    es60_zero_error, start_sample, stop_sample, freq, c, alpha, sphere_ts)
 
-%function process_es60_cal(dfilename, save_filename, start_ping, stop_ping, ...
-%    es60_zero_error, start_sample, num_samples)
+%function process_es60_cal(dfilenames, save_filename, es60_zero_error, ...
+%    start_sample, stop_sample, freq, c, alpha, sphere_ts)
 % OR
 % function process_es60cal(save_filename)
 %    
@@ -18,13 +18,13 @@ function process_ex60_cal(rawfilenames, save_filename, ...
 % negative number will result in no correction being applied, as is
 % appropriate for EK60 data.
 %
-% start_ping is the ping number to start at, and stop_ping is the ping
-% number to load too. These allow one to select a region from the echo
-% data.
-%
 % start_sample is the sample number it start at, and stop_sample is when 
 % to stop. These need to bracket the sphere echo in the
 % echogram. Try a wide range first and then narrow it down.
+%
+% freq is the sounder freq in Hz
+%
+% c is the sound speed in m/s
 %
 % sphere_ts is the ts of the sphere in dB. This is optional, and defaults
 % to a frequency specific value if not given
@@ -57,6 +57,12 @@ for i = 1:length(rawfilenames)
     end
 end
 
+% Work out the sphere ts if it hasn't been given
+if nargin == 8
+    sphere_ts = getSphereTS(data.pings.frequency);
+end
+
+
 % Get Sp and Sv versions of the actual samples
 disp('Loading raw file.')
 calParams = readEKRaw_GetCalParms(header, data);
@@ -84,15 +90,16 @@ data.pings.soundvelocity = data.pings.soundvelocity(1);
 data.pings.absorptioncoefficient = data.pings.absorptioncoefficient(1);
 
 % Calculate the correction for the ES60 triange wave error if required - it is 
-% applied later. The offset values were given by the convertEk60ToCrest
-% program and are found in the i files that convertEk60ToCrest 
-% produces
-% i = 1;
-% if es60_zero_error >= 0
-%     data.cal.error = es60_error([start_ping:stop_ping]-es60_zero_error)'; i=i+1;
-% else
-%     data.cal.error = zeros(stop_ping-start_ping+1,1);
-% end
+% applied later.
+
+num_pings = size(data.pings.power, 2);
+data.cal.es60_zero_error = es60_zero_error;
+
+if es60_zero_error >= 0
+    data.pings.es60_error = es60_error((1:num_pings)-es60_zero_error)';
+else
+    data.pings.es60_error = zeros(1, num_pings);
+end
 
 % find the index with the largest echo amplitude (hopefully
 % the peak of the sphere echo) in the given bounds
@@ -204,8 +211,9 @@ data.pings.power = double(data.pings.power(:, data.cal.valid));
 data.pings.alongship = double(data.pings.alongship(:, data.cal.valid));
 data.pings.athwartship = double(data.pings.athwartship(:, data.cal.valid));
 data.cal.peak_pos = data.cal.peak_pos(data.cal.valid);
-%    data.cal.error = data.cal.error(data.cal.valid);
+data.pings.es60_error = data.pings.es60_error(:, data.cal.valid);
 data.cal.start_sample = start_sample;
+data.cal.sphere_ts = sphere_ts;
 
 save(save_filename, 'data')
 process_data(data, scc_revision)
@@ -219,7 +227,6 @@ function process_data(data, scc_revision)
 
 % Extract and derive some data from the .raw files
 sample_interval = double(data.cal.params.soundvelocity * data.pings.sampleinterval * 0.5); % [m]
-sphere_ts = getSphereTS(data.pings.frequency);
 
 % These are no longer used, but kept here just in case they are wanted in
 % the future.
@@ -263,20 +270,22 @@ psBW = data.config.beamwidthathwartship; % [degrees]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Apply an ES60 triangle wave correction to the data
-%error = 10.^(error/20); % convert from dB to a ratio
-     
-%amp_ts = amp_ts ./ error;
-%amp_sa = amp_sa ./ repmat(error',9,1);
+error = 10.^(data.pings.es60_error/20); % convert from dB to a ratio
 
-%amp_sa = amp_sa / system_calibration_sa;
-%amp_sa = amp_sa.^2;
-% and power...
-%
+amp_ts = amp_ts ./ error';
+amp_sv = amp_sv ./ repmat(error,9,1);
+power = power ./ repmat(error,9,1);
 
 % And merge some info into one matrix for convenience
 sphere = [amp_ts athwart along data.cal.range];
+
+% keep a copy of the original set of data
+original.sphere = sphere;
+original.amp_sv = amp_sv;
+original.power = power;
+
 % The amp_ts and range data are now in sphere
-clear amp_ts range
+clear amp_ts range error
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Remove any echoes that are grossly wrong.
@@ -294,7 +303,7 @@ power = power(:,i);
 % Use the Simrad theoretical beampattern formula to trim echoes that are
 % grossly wrong
 maxdBDiff = 6; % any point more than maxDbDiff from the theoretical will be discarded as an outlier
-theoreticalTS = sphere_ts - simradBeamCompensation(faBW, psBW, sphere(:,3), sphere(:,3));
+theoreticalTS = data.cal.sphere_ts - simradBeamCompensation(faBW, psBW, sphere(:,3), sphere(:,3));
 diffTS = theoreticalTS - sphere(:,1);
 i = find(abs(diffTS) <= maxdBDiff);
 sphere = sphere(i,:);
@@ -304,8 +313,43 @@ power = power(:,i);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Fit the simrad beam pattern to the data. We get estimated beamwidth,
 % offsets, and peak value from this.
-[offset_fa faBW offset_ps psBW pts_used peak_ts] = ...
+[offset_fa faBW offset_ps psBW pts_used peak_ts exitflag] = ...
     fit_beampattern(sphere(:,1), sphere(:,2), sphere(:,3), 1.0, mean([faBW psBW]));
+
+if exitflag ~= 1 % failed to converge
+    disp('Failed to fit the simrad beam pattern to the data. ')
+    disp('This probably means that the beampattern is so far from circular ')
+    disp('that there is something wrong with the Ex60.')
+    % set some do-nothing values in-lieu of the fitted parameters
+    offset_fa = 0;
+    offset_pos = 0;
+    pts_used = 1:length(sphere(:,1));
+    peak_ts = max(sphere(:,1));
+    faBW = data.config.beamwidthalongship;
+    psBW = data.config.beamwidthathwartship;
+    % plot the probably wrong data, using the un-filtered dataset
+    [XI YI]=meshgrid(-trimTo:.1:trimTo,-trimTo:.1:trimTo);
+    ZI = griddata(original.sphere(:,2), original.sphere(:,3), original.sphere(:,1), XI, YI);
+    contourf(XI, YI, ZI)
+    hold on
+    plot(sphere(:,2), sphere(:,3),'+','MarkerSize',2,'MarkerEdgeColor',[.5 .5 .5])
+    % add some circles to indicate what a circular beam looks like...
+    for r = 1:4
+        x = r * cos(0:.01:2*pi);
+        y = r * sin(0:.01:2*pi);
+        plot(x, y, 'k')
+    end
+    colorbar
+    axis square
+    hold off
+    disp(' ')
+    disp('Contour plot is of all data points (no filtering, beyond what you did manually).')
+    disp(' ')
+    disp('No further analysis will be done. The beam is odd.')
+    disp(' ')
+    disp(['Produced using version ' scc_revision ' of this Matlab function'])
+    return
+end
 
 % apply the offsets to the target angles
 sphere(:,2) = sphere(:,2) - offset_ps;
@@ -370,8 +414,8 @@ disp(['Mean ts within ' oa ' deg of centre = ' num2str(mean_ts_on_axis) ' dB'])
 disp(['Std of ts within ' oa ' deg of centre = ' num2str(std_ts_on_axis) ' dB'])
 disp(['Number of echoes within ' oa ' deg of centre = ' num2str(length(sphere(i,1)))])
 disp(['On axis TS from beam fitting = ' num2str(peak_ts) ' dB.'])
-disp(['The sphere ts is ' num2str(sphere_ts) ' dB'])
-outby = sphere_ts - peak_ts;
+disp(['The sphere ts is ' num2str(data.cal.sphere_ts) ' dB'])
+outby = data.cal.sphere_ts - peak_ts;
 if outby > 0
     disp(['Hence Ex60 is reading ' num2str(outby) ' dB too low'])
 else
@@ -505,7 +549,7 @@ disp(['RMS of fit to beam model out to ' num2str(fit_out_to) ' degrees = ' num2s
 disp(['Produced using version ' scc_revision ' of this Matlab function'])
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function [offset_fa, bw_fa, offset_ps, bw_ps, pts_used, peak] ...
+function [offset_fa, bw_fa, offset_ps, bw_ps, pts_used, peak, exitflag] ...
     = fit_beampattern(ts, echoangle_ps, echoangle_fa, limit, bw)
 
 % A function to estimate the beamwidth from the given data. ts and echoangle
@@ -519,7 +563,8 @@ function [offset_fa, bw_fa, offset_ps, bw_ps, pts_used, peak] ...
 % x(1) is the fa beamwidth, x(2) the ps beamwidth, x(3) the fa offset, 
 % x(4) the ps offset and x(5) the ts on beam-axis
 shape = @(x) sum((ts - x(5) + simradBeamCompensation(x(1), x(2), echoangle_fa-x(3), echoangle_ps-x(4))) .^2);
-result = fminsearch(shape, [bw, bw, 0.0, 0.0, max(ts)]);
+[result fval exitflag output] = fminsearch(shape, [bw, bw, 0.0, 0.0, max(ts)]);
+
 bw_fa = result(1);
 bw_ps = result(2);
 offset_fa = result(3);
