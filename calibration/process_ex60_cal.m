@@ -73,9 +73,6 @@ data = readEKRaw_ConvertAngles(data, calParams);
 % keep the cal params around for later
 data.cal.params = calParams;
 
-% set stop_ping to the number of pings that we actually have
-%stop_ping = length(data.pings.frequency) + start_ping;
-
 % throw away lots of stuff that we don't need to save on memory...
 data.pings.transducerdepth = data.pings.transducerdepth(1);
 data.pings.frequency = data.pings.frequency(1);
@@ -86,7 +83,7 @@ data.pings.sampleinterval = data.pings.sampleinterval(1);
 data.pings.soundvelocity = data.pings.soundvelocity(1);
 data.pings.absorptioncoefficient = data.pings.absorptioncoefficient(1);
 
-% Calculate the correction for the ES60 triange wave error if require - it is 
+% Calculate the correction for the ES60 triange wave error if required - it is 
 % applied later. The offset values were given by the convertEk60ToCrest
 % program and are found in the i files that convertEk60ToCrest 
 % produces
@@ -100,61 +97,60 @@ data.pings.absorptioncoefficient = data.pings.absorptioncoefficient(1);
 % find the index with the largest echo amplitude (hopefully
 % the peak of the sphere echo) in the given bounds
 warning('off','MATLAB:log:logOfZero')
-%for i = 1:length(d)
-    % get the user to draw in regions that contain just the echoes from
-    % the sphere.
-    hold off
-    clf
-    imagesc(data.pings.Sp)
-    disp('Left mouse button picks points.')
-    disp('Right mouse button picks last point.')
-	hold on
-	ii = 0;
-	but = 1;
-	
-    xy = [];
-    while but == 1
-        [xi,yi,but] = ginput(1);
-        if isempty(but) 
-            break
-        end
-        plot(xi,yi,'wo')
-        ii = ii+1;
-        xy(ii,:) = [xi;yi]'; %#ok<AGROW>
-        if ii > 1
-            plot(xy(ii-1:ii,1),xy(ii-1:ii,2),'w')
-        end
-    end
-    ii = ii + 1;
-    xy(ii,:) = xy(1,:); % close the polygon
-    plot(xy(ii-1:ii,1),xy(ii-1:ii,2),'w')
-	drawnow
 
-    data.cal.polygon = xy;
-    
-    % now pick the max point for each ping from within the depths given by
-    % the polygon that the user has just drawn
-    num_pings = size(data.pings.Sp, 2); 
-    num_samples = size(data.pings.Sp, 1);
-    [X Y] = meshgrid(1:num_pings, 1:num_samples);
-    % find all points in X Y that are inside the user drawn polygon
-    in = inpolygon(X, Y, xy(:,1), xy(:,2));
-    % get the max and min sample (row) number and use them as bounds for
-    % picking the max amplitude of the sphere echo
-    data.cal.peak_pos = zeros(num_pings, 1); % pre-allocate storage
-    data.cal.valid = ones(num_pings, 1); % pre-allocate storage
-    for j = 1:num_pings % iterate over columns
-        bounds = find(in(:,j) == 1);
-        if ~isempty(bounds)
-            % find the max amplitude that lies between the user drawn polygon
-            [m k] = max(data.pings.Sp(min(bounds):max(bounds),j), [], 1);
-            data.cal.peak_pos(j) = k + min(bounds) - 1; % -1 corrects an off by 1 error
-        else
-            data.cal.valid(j) = 0;
-        end
+% get the user to draw in regions that contain just the echoes from
+% the sphere.
+hold off
+clf
+imagesc(data.pings.Sp)
+disp('Left mouse button picks points.')
+disp('Right mouse button picks last point.')
+hold on
+ii = 0;
+but = 1;
+
+xy = [];
+while but == 1
+    [xi,yi,but] = ginput(1);
+    if isempty(but)
+        break
     end
-    data.cal.valid = logical(data.cal.valid);
-%end
+    plot(xi,yi,'wo')
+    ii = ii+1;
+    xy(ii,:) = [xi;yi]'; %#ok<AGROW>
+    if ii > 1
+        plot(xy(ii-1:ii,1),xy(ii-1:ii,2),'w')
+    end
+end
+ii = ii + 1;
+xy(ii,:) = xy(1,:); % close the polygon
+plot(xy(ii-1:ii,1),xy(ii-1:ii,2),'w')
+drawnow
+
+data.cal.polygon = xy;
+    
+% now pick the max point for each ping from within the depths given by
+% the polygon that the user has just drawn
+num_pings = size(data.pings.Sp, 2);
+num_samples = size(data.pings.Sp, 1);
+[X Y] = meshgrid(1:num_pings, 1:num_samples);
+% find all points in X Y that are inside the user drawn polygon
+in = inpolygon(X, Y, xy(:,1), xy(:,2));
+% get the max and min sample (row) number and use them as bounds for
+% picking the max amplitude of the sphere echo
+data.cal.peak_pos = zeros(num_pings, 1); % pre-allocate storage
+data.cal.valid = ones(num_pings, 1); % pre-allocate storage
+for j = 1:num_pings % iterate over columns
+    bounds = find(in(:,j) == 1);
+    if ~isempty(bounds)
+        % find the max amplitude that lies between the user drawn polygon
+        [m k] = max(data.pings.Sp(min(bounds):max(bounds),j), [], 1);
+        data.cal.peak_pos(j) = k + min(bounds) - 1; % -1 corrects an off by 1 error
+    else
+        data.cal.valid(j) = 0;
+    end
+end
+data.cal.valid = logical(data.cal.valid);
 
 % show the echoes that have been choosen for the user to check, and let
 % them blank out parts 
@@ -202,16 +198,14 @@ warning('on','MATLAB:log:logOfZero')
 % there was no polygon around them, or they were blanked out for some
 % reason).
 
-%for i = 1:length(d)
-    data.pings.Sp = double(data.pings.Sp(:, data.cal.valid));
-    data.pings.Sv = double(data.pings.Sv(:, data.cal.valid));
-    data.pings.power = double(data.pings.power(:, data.cal.valid));
-    data.pings.alongship = double(data.pings.alongship(:, data.cal.valid));
-    data.pings.athwartship = double(data.pings.athwartship(:, data.cal.valid));
-    data.cal.peak_pos = data.cal.peak_pos(data.cal.valid);
+data.pings.Sp = double(data.pings.Sp(:, data.cal.valid));
+data.pings.Sv = double(data.pings.Sv(:, data.cal.valid));
+data.pings.power = double(data.pings.power(:, data.cal.valid));
+data.pings.alongship = double(data.pings.alongship(:, data.cal.valid));
+data.pings.athwartship = double(data.pings.athwartship(:, data.cal.valid));
+data.cal.peak_pos = data.cal.peak_pos(data.cal.valid);
 %    data.cal.error = data.cal.error(data.cal.valid);
-    data.cal.start_sample = start_sample;
-%end
+data.cal.start_sample = start_sample;
 
 save(save_filename, 'data')
 process_data(data, scc_revision)
