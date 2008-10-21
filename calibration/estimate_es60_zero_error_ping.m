@@ -56,7 +56,7 @@ for i = 1:length(rawfilenames)
             else
                 % use the supplied offset to deduce the zero error ping
                 % number. 
-                % XXX This needs some more checking...
+                % XXX This needs some more checking to make sure it works
                 [m, zero_error_ping(i)] = min(abs(fit.mean - offset));
             end
         end
