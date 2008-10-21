@@ -1,8 +1,8 @@
 function process_ex60_cal(rawfilenames, save_filename, ...
-    es60_zero_error, start_sample, stop_sample, freq, c, alpha, sphere_ts)
+    es60_zero_error, start_depth, stop_depth, freq, c, alpha, sphere_ts)
 
 %function process_es60_cal(dfilenames, save_filename, es60_zero_error, ...
-%    start_sample, stop_sample, freq, c, alpha, sphere_ts)
+%    start_depth, stop_depth, freq, c, alpha, sphere_ts)
 % OR
 % function process_es60cal(save_filename)
 %    
@@ -14,11 +14,12 @@ function process_ex60_cal(rawfilenames, save_filename, ...
 % save_filename is a filename to either save the partially processed data
 % into, or the filename to retrieve such data from
 %
-% es60_zero_error is the ping number at which the es60 error is zero. A
-% negative number will result in no correction being applied, as is
-% appropriate for EK60 data.
+% es60_zero_error is an array of ping numbers at which the es60 error is
+% zero. There should be one number for each raw filename given. A negative
+% number will result in no correction being applied, as is appropriate for
+% EK60 data.
 %
-% start_sample is the sample number it start at, and stop_sample is when 
+% start_depth is the depth [m] it start at, and stop_depth is when 
 % to stop. These need to bracket the sphere echo in the
 % echogram. Try a wide range first and then narrow it down.
 %
@@ -39,13 +40,34 @@ scc_revision = regexprep(scc_revision, '[^\d]', '');
 
 if nargin == 1
     load(rawfilenames) % not reall rawfilename, but rather save_filename
-     process_data(data, scc_revision)
+    process_data(data, scc_revision)
     return
 end
 
 for i = 1:length(rawfilenames)
-    [h d] = readEKRaw(rawfilenames{i}, 'Frequencies', freq, 'GPS', 0, 'PingRange', [0 Inf],...
+    
+    % read in the first ping to get the parameters that are needed to
+    % convert the given depth ranges into sample range.
+    [h d] = readEKRaw(rawfilenames{i}, 'Frequencies', freq, 'GPS', 0, 'PingRange', [1 1], ...
+        'SampleRange', [1 1]);
+    start_sample = round(2* start_depth / (d.pings(1).sampleinterval * d.pings(1).soundvelocity));
+    stop_sample = round(2* stop_depth / (d.pings(1).sampleinterval * d.pings(1).soundvelocity));
+    
+    % and then read in the data for real
+    [h d] = readEKRaw(rawfilenames{i}, 'Frequencies', freq, 'GPS', 0, 'PingRange', [1 Inf],...
         'SampleRange', [start_sample stop_sample]);
+
+    % Calculate the correction for the ES60 triange wave error if required - it is
+    % applied later.
+    d.cal.es60_zero_error = es60_zero_error;
+    
+    num_pings = size(d.pings.power, 2);
+    if es60_zero_error(i) >= 0
+        d.pings.es60_error = es60_error((1:num_pings)-es60_zero_error(i));
+    else
+        d.pings.es60_error = zeros(1, num_pings);
+    end
+
     % merge into one dataset
     if i == 1
         header = h;
@@ -54,14 +76,17 @@ for i = 1:length(rawfilenames)
        data.pings.power = [data.pings.power d.pings.power];
        data.pings.alongship = [data.pings.alongship d.pings.alongship];
        data.pings.athwartship = [data.pings.athwartship d.pings.athwartship];
+       data.pings.es60_error = [data.pings.es60_error d.pings.es60_error];
     end
 end
+
+% keep for records.
+data.cal.es60_error = es60_zero_error;
 
 % Work out the sphere ts if it hasn't been given
 if nargin == 8
     sphere_ts = getSphereTS(data.pings.frequency);
 end
-
 
 % Get Sp and Sv versions of the actual samples
 disp('Loading raw file.')
@@ -88,18 +113,6 @@ data.pings.bandwidth = data.pings.bandwidth(1);
 data.pings.sampleinterval = data.pings.sampleinterval(1);
 data.pings.soundvelocity = data.pings.soundvelocity(1);
 data.pings.absorptioncoefficient = data.pings.absorptioncoefficient(1);
-
-% Calculate the correction for the ES60 triange wave error if required - it is 
-% applied later.
-
-num_pings = size(data.pings.power, 2);
-data.cal.es60_zero_error = es60_zero_error;
-
-if es60_zero_error >= 0
-    data.pings.es60_error = es60_error((1:num_pings)-es60_zero_error)';
-else
-    data.pings.es60_error = zeros(1, num_pings);
-end
 
 % find the index with the largest echo amplitude (hopefully
 % the peak of the sphere echo) in the given bounds
@@ -217,8 +230,6 @@ data.cal.sphere_ts = sphere_ts;
 
 save(save_filename, 'data')
 process_data(data, scc_revision)
-
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % This function does the calibration analysis
