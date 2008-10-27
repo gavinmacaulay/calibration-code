@@ -173,7 +173,8 @@ end
 data.cal.valid = logical(data.cal.valid);
 
 % show the echoes that have been choosen for the user to check, and let
-% them blank out parts 
+% them blank out parts
+originalSp = data.pings.Sp; % So we can restore/undo deleted regions
 for i = 1:length(data)
     clf
     imagesc(data.pings.Sp)
@@ -183,6 +184,7 @@ for i = 1:length(data)
     but = [1 1];
     zoom_limits = [1 size(data.pings.Sp, 2) 1 size(data.pings.Sp, 1)];
     disp('Left click and left click to define regions to remove')
+    disp('Left click and Right click to restore deleted regions')
     disp('Middle click and middle click to zoom in')
     disp('Two right clicks to zoom out')
     disp('Two spaces to exit')
@@ -201,6 +203,16 @@ for i = 1:length(data)
             plot(data.cal.peak_pos, 'w')
             axis(zoom_limits)
             hold off
+        elseif but(1) == 1 && but(2) == 3
+            sort(xi);
+            limits = [floor(xi(1)) ceil(xi(2))];
+            data.pings.Sp(:, limits(1):limits(2)) = originalSp(:, limits(1):limits(2));
+            data.cal.valid(limits(1):limits(2)) = true;
+            imagesc(data.pings.Sp)
+            hold on
+            plot(data.cal.peak_pos, 'w')
+            axis(zoom_limits)
+            hold off
         elseif but(1) == 2 && but(2) == 2
             zoom_limits = [min([xi(1) xi(2)]) max([xi(1) xi(2)]) ...
                 min([yi(1) yi(2)]) max([yi(1) yi(2)])];
@@ -213,6 +225,7 @@ for i = 1:length(data)
 end
 hold off
 warning('on','MATLAB:log:logOfZero')
+clear originalSp; % Not neeeded anymore
 
 % remove all transmits for which we didn't have suitable echoes (because
 % there was no polygon around them, or they were blanked out for some
@@ -255,12 +268,23 @@ athwart = zeros(size(pp))';
 power = zeros(length(pp),9);
 
 for j = 1:length(pp)
-    tts(j) = data.pings.Sp(pp(j), j);
-    along(j) = data.pings.alongship(pp(j), j);
-    athwart(j) = data.pings.athwartship(pp(j), j);
-    ssv(j,:) = data.pings.Sv(pp(j)-4:pp(j)+4, j);
-    power(j,:) = data.pings.power(pp(j)-4:pp(j)+4, j);
-    range(j) = pp(j);
+    if (4 < pp(j) & (pp(j) + 4) < size(data.pings.Sp,1))
+%         try
+            tts(j) = data.pings.Sp(pp(j), j);
+            along(j) = data.pings.alongship(pp(j), j);
+            athwart(j) = data.pings.athwartship(pp(j), j);
+            ssv(j,:) = data.pings.Sv(pp(j)-4:pp(j)+4, j);
+            power(j,:) = data.pings.power(pp(j)-4:pp(j)+4, j);
+            range(j) = pp(j);
+%         catch ME
+%             warning(num2str([pp(j), j]))
+%             warning(num2str(size(data.pings.Sp)))
+%             warning(num2str(size(data.pings.alongship)))
+%             warning(num2str(size(data.pings.athwartship)))
+%             warning(num2str(size(data.pings.Sv)))
+%             warning(num2str(size(data.pings.power)))
+%         end
+    end
 end
 data.cal.ts = tts;
 data.cal.sv = ssv;
@@ -444,7 +468,7 @@ disp(' ')
 clf
 [XI YI]=meshgrid(-trimTo:.1:trimTo,-trimTo:.1:trimTo);
 warning('off','MATLAB:griddata:DuplicateDataPoints');
-ZI=griddata(sphere(:,2), sphere(:,3), sphere(:,1)+outby,XI,YI);
+ZI=griddata(double(sphere(:,2)), double(sphere(:,3)), double(sphere(:,1)+outby),XI,YI);
 warning('on','MATLAB:griddata:DuplicateDataPoints');
 contourf(XI,YI,ZI)
 disp('This figure is for a visual quality check of the beam pattern')
@@ -468,7 +492,7 @@ pause
 clf
 surf(XI, YI, ZI)
 warning('off','MATLAB:griddata:DuplicateDataPoints');
-ZI=griddata(sphere(:,2), sphere(:,3), sphere(:,1)+compensation+outby,XI,YI);
+ZI=griddata(double(sphere(:,2)), double(sphere(:,3)), double(sphere(:,1)+compensation+outby),XI,YI);
 warning('on','MATLAB:griddata:DuplicateDataPoints');
 hold on
 surf(XI, YI, ZI)
@@ -574,7 +598,7 @@ function [offset_fa, bw_fa, offset_ps, bw_ps, pts_used, peak, exitflag] ...
 % x(1) is the fa beamwidth, x(2) the ps beamwidth, x(3) the fa offset, 
 % x(4) the ps offset and x(5) the ts on beam-axis
 shape = @(x) sum((ts - x(5) + simradBeamCompensation(x(1), x(2), echoangle_fa-x(3), echoangle_ps-x(4))) .^2);
-[result fval exitflag output] = fminsearch(shape, [bw, bw, 0.0, 0.0, max(ts)]);
+[result fval exitflag output] = fminsearch(shape, double([bw, bw, 0.0, 0.0, max(ts)]));
 
 bw_fa = result(1);
 bw_ps = result(2);
