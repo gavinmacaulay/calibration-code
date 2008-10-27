@@ -7,8 +7,8 @@ function zero_error_ping = estimate_es60_zero_error_ping(rawfilenames, freq, off
 % error from the triangle wave-shaped change in power values.
 % 
 % It cannot find the relevant ping if there are too few pings in the file.
-% In that case, an offset can be supplied. This is the mean power value one
-% obtains from the same transducer/transcevier from a file that is long
+% In that case, an offset can be supplied. This is the mean power value
+% obtained from the same transducer/transcevier from a file that is long
 % enough, to which the correction has been applied. The offset is only used
 % if a zero error ping number cannot be found.
 %
@@ -19,6 +19,9 @@ function zero_error_ping = estimate_es60_zero_error_ping(rawfilenames, freq, off
 %
 % The freq parameter determines which frequency to use from the file (files
 % can have mulitple freqs). Use units of Hz.
+%
+% Optional offeset has units of dB. I.e. use the mean corrected power value
+% obtained from files for which the error correction is successful.
 % 
 % The zero error ping numbers are returned from the function in an array
 % with as many entries as there are raw filenames.
@@ -52,13 +55,27 @@ for i = 1:length(rawfilenames)
             % use the supplied offset (or ask for one)
             if isnan(offset)
                 disp('Cannot find the zero error ping number. You need to manually supply an offset')
-                zero_error_ping(i) = NaN;
             else
+                disp('Using supplied offset')
+                % Now find the position with the mean closest to the
+                % supplied offset, but still with the low std
+                % Not vectorised, but this is not the normal case so
+                % acceptable
+                min_with_offset = 100000000;
+                for j = 1:length(fit)
+                    if (abs(fit.mean(j) - offset) < min_with_offset) && (fit.std(j) < min(fit.std)+0.01*std_of_std)
+                        min_with_offset = abs(fit.mean(j)-offset);
+                        zero_error_ping(i) = j;
+                    end
+                end
                 % use the supplied offset to deduce the zero error ping
                 % number. 
                 % XXX This needs some more checking to make sure it works
-                [m, zero_error_ping(i)] = min(abs(fit.mean - offset));
+                %[m, zero_error_ping(i)] = min(abs(fit.mean - offset));
             end
+        else %good enough?
+            mean_corrected_value = mean(d.pings.power - es60_error((1:num_pings)+zero_error_ping(i)));
+            disp(['The mean corrected value is ' num2str(mean_corrected_value) ' dB'])
         end
     else
         mean_corrected_value = mean(d.pings.power - es60_error((1:num_pings)+zero_error_ping(i)));
