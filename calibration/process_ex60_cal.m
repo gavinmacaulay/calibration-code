@@ -85,7 +85,9 @@ data.cal.es60_error = es60_zero_error;
 
 % Work out the sphere ts if it hasn't been given
 if nargin == 8
-    sphere_ts = getSphereTS(data.pings.frequency);
+    % data.pings.frequency is as long as the number of pings, so just use
+    % the first ping for this call.
+    sphere_ts = getSphereTS(data.pings.frequency(1));
 end
 
 % Get Sp and Sv versions of the actual samples
