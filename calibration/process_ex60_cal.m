@@ -346,7 +346,7 @@ power = power(:,i);
 % Use the Simrad theoretical beampattern formula to trim echoes that are
 % grossly wrong
 maxdBDiff = 6; % any point more than maxDbDiff from the theoretical will be discarded as an outlier
-theoreticalTS = data.cal.sphere_ts - simradBeamCompensation(faBW, psBW, sphere(:,3), sphere(:,3));
+theoreticalTS = data.cal.sphere_ts - simradBeamCompensation(faBW, psBW, sphere(:,3), sphere(:,2));
 diffTS = theoreticalTS - sphere(:,1);
 i = find(abs(diffTS) <= maxdBDiff);
 sphere = sphere(i,:);
