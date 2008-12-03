@@ -17,7 +17,7 @@ function process_ex60_cal(rawfilenames, save_filename, ...
 % es60_zero_error is an array of ping numbers at which the es60 error is
 % zero. There should be one number for each raw filename given. A negative
 % number will result in no correction being applied, as is appropriate for
-% EK60 data.
+% EK60 data. If a single -1 is given, that is used for all raw files.
 %
 % start_depth is the depth [m] it start at, and stop_depth is when 
 % to stop. These need to bracket the sphere echo in the
@@ -43,6 +43,12 @@ if nargin == 1
     process_data(data, scc_revision)
     return
 end
+
+% make life a little easier for non-es60 files
+if length(es60_zero_error) == 1 && es60_zero_error(1) == -1
+    es60_zero_error = -1 * ones(1, length(rawfilenames));
+end
+
 
 for i = 1:length(rawfilenames)
     
