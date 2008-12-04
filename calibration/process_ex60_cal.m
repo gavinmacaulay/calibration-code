@@ -645,6 +645,7 @@ compensation = 6.0206 * (part1.^2 + part2.^2 - 0.18*part1.^2.*part2.^2);
 % Get a nominal ts for the given frequency
 function sphere_ts = getSphereTS(freq)
 
+% These are from Fisheries Acoustics, Simmonds & MacLennan, 2005.
 switch freq
     case 18000
         sphere_ts = -42.7;
