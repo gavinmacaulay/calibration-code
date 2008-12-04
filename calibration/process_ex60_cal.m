@@ -690,7 +690,7 @@ subplot1(2,2)
 % 0 degrees
 subplot1(1)
 i = find(abs(sphere(:,2)) < tol);
-plot(sphere(i,3), sphere(i,1)+outby,'.')
+plot(sphere(i,3), sphere(i,1)+outby,'k.')
 hold on
 x = -trimTo:.1:trimTo;
 plot(x, peak_ts + outby - simradBeamCompensation(faBW, psBW, x, 0), 'k');
@@ -702,7 +702,7 @@ i = find(abs(sphere(:,2) - sphere(:,3)) < tol);
 [phi_x theta_x] = simradAnglesToSpherical(sphere(i,3), sphere(i,2));
 s = sphere(i,1) + outby;
 i = find(abs(phi_x) <= trimTo);
-plot(phi_x(i), s(i), '.')
+plot(phi_x(i), s(i), 'k.')
 hold on
 [phi_x theta_x] = simradAnglesToSpherical(x, x);
 beam = peak_ts + outby - simradBeamCompensation(faBW, psBW, x, x);
@@ -712,7 +712,7 @@ plot(phi_x(i), beam(i), 'k');
 % 90 degrees
 subplot1(3)
 i = find(abs(sphere(:,3)) < tol);
-plot(sphere(i,2), sphere(i,1)+outby,'.')
+plot(sphere(i,2), sphere(i,1)+outby,'k.')
 hold on
 x = -trimTo:.1:trimTo;
 plot(x, peak_ts + outby - simradBeamCompensation(faBW, psBW, 0, x), 'k');
@@ -726,7 +726,7 @@ i = find(abs(-sphere(:,2) - sphere(:,3)) < tol);
 [phi_x theta_x] = simradAnglesToSpherical(sphere(i,3), sphere(i,2));
 s = sphere(i,1) + outby;
 i = find(abs(phi_x) <= trimTo);
-plot(phi_x(i), s(i),'.')
+plot(phi_x(i), s(i),'k.')
 hold on
 [phi_x theta_x] = simradAnglesToSpherical(-x, x);
 beam = peak_ts + outby - simradBeamCompensation(faBW, psBW, -x, x);
