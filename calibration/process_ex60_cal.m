@@ -591,6 +591,7 @@ disp(['RMS of fit to beam model out to ' num2str(fit_out_to) ' degrees = ' num2s
 
 disp(['Produced using version ' scc_revision ' of this Matlab function'])
 
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function [offset_fa, bw_fa, offset_ps, bw_ps, pts_used, peak, exitflag] ...
     = fit_beampattern(ts, echoangle_ps, echoangle_fa, limit, bw)
@@ -628,6 +629,7 @@ offset_ps = result(4);
 peak = result(5);
 pts_used = ii;
 
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function compensation = simradBeamCompensation(faBW, psBW, faAngle, psAngle)
 % Calculates the simard beam compensation given the beam angles and
@@ -637,6 +639,8 @@ part1 = 2*faAngle/faBW;
 part2 = 2*psAngle/psBW;
 
 compensation = 6.0206 * (part1.^2 + part2.^2 - 0.18*part1.^2.*part2.^2);
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Get a nominal ts for the given frequency
 function sphere_ts = getSphereTS(freq)
@@ -671,6 +675,7 @@ i = find(theta < 0);
 phi(i) = -phi(i);
 theta(i) = 180+theta(i);
 
+        
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function plotBeamSlices(sphere, outby, trimTo, faBW, psBW, peak_ts, tol)
 % Produce a plot of the sphere echoes and the fitted beam pattern at 4
@@ -749,14 +754,57 @@ for i = 1:4
 end
 
 % add a line to each subplot to indicate which angle the slice is for
-% Work out the position for the centre of the angled line
-pos = [limits(1)+0.06*(limits(2)-limits(1)) limits(4) - 0.1*(limits(4)-limits(3))];
-subplot1(1)
-text(pos(1), pos(2), '0\circ')
-subplot1(2)
-text(pos(1), pos(2), '45\circ')
-subplot1(3)
-text(pos(1), pos(2), '90\circ')
-subplot1(4)
-text(pos(1), pos(2), '135\circ')
+% Work out the position for the ship schematic with angled line
+
+angles = [0 45 90 135]; % angles of the four plots
+for i = 1:length(angles)
+    subplot1(i)
+    pos = get(gca, 'Position');
+    ax = axes('Position', [pos(1)+0.02*pos(3) pos(2)+0.7*pos(4) 0.2*pos(3) 0.2*pos(4)]);
+    plot_angle_diagram(ax, angles(i));
+end
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function plot_angle_diagram(ax, angle)
+% Plots a little figure of the ship and an angled line on the given axes
+
+% the ship shape
+x = [0 1 1 .5 0 0];
+y = [0 0 2 2.5 2 0];
+plot(x,y,'k')
+hold on
+
+% the circle to represent the transducer
+theta = 0:.01:2.1*pi;
+r = 0.3;
+centre = [0.5 1.5];
+length = 0.9;
+plot(centre(1) + r*cos(theta), centre(2) + r*sin(theta), 'k')
+
+% the angled line
+switch angle
+    case 0
+        plot([centre(1)-length centre(1)+length], [centre(2) centre(2)], 'k', 'LineWidth', 2)
+    case 45
+        x = length*cos(angle*pi/180);
+        y = length*sin(angle*pi/180);
+        plot([centre(1)-x centre(1)+x] ,[centre(2)-y centre(2)+y], 'k', 'LineWidth', 2)
+    case 90
+        plot([centre(1) centre(1)], [centre(2)-length centre(2)+length], 'k', 'LineWidth', 2)
+    case 135
+        x = length*cos(angle*pi/180);
+        y = length*sin(angle*pi/180);
+        plot([centre(1)+x centre(1)-x] ,[centre(2)+y centre(2)-y], 'k', 'LineWidth', 2)
+end
+
+axis equal
+% the bottom of some figures get chopped off when removing the axis, so
+% extent the axis a little to prevent this
+set(gca, 'YLim', [-0.1 2.6])
+axis off
+hold off
+
+
 
