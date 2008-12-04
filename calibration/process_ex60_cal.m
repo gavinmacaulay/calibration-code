@@ -786,13 +786,13 @@ plot(centre(1) + r*cos(theta), centre(2) + r*sin(theta), 'k')
 % the angled line
 switch angle
     case 0
-        plot([centre(1)-length centre(1)+length], [centre(2) centre(2)], 'k', 'LineWidth', 2)
+        plot([centre(1) centre(1)], [centre(2)-length centre(2)+length], 'k', 'LineWidth', 2)        
     case 45
         x = length*cos(angle*pi/180);
         y = length*sin(angle*pi/180);
         plot([centre(1)-x centre(1)+x] ,[centre(2)-y centre(2)+y], 'k', 'LineWidth', 2)
     case 90
-        plot([centre(1) centre(1)], [centre(2)-length centre(2)+length], 'k', 'LineWidth', 2)
+        plot([centre(1)-length centre(1)+length], [centre(2) centre(2)], 'k', 'LineWidth', 2)
     case 135
         x = length*cos(angle*pi/180);
         y = length*sin(angle*pi/180);
