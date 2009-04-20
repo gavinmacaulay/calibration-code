@@ -203,7 +203,7 @@ for i = 1:length(data)
         end
         if but(1) == 1 && but(2) == 1
             sort(xi);
-            limits = [max(0, floor(xi(1))) min(ceil(xi(2)), length(data.cal.valid))];
+            limits = [max(1, floor(xi(1))) min(ceil(xi(2)), length(data.cal.valid))];
             data.pings.Sp(:, limits(1):limits(2)) = -120; % a low value
             data.cal.valid(limits(1):limits(2)) = false;
             imagesc(data.pings.Sp)
@@ -213,7 +213,7 @@ for i = 1:length(data)
             hold off
         elseif but(1) == 1 && but(2) == 3
             sort(xi);
-            limits = [floor(xi(1)) ceil(xi(2))];
+            limits = [max(1, floor(xi(1))) min(ceil(xi(2)), length(data.cal.valid))];
             data.pings.Sp(:, limits(1):limits(2)) = originalSp(:, limits(1):limits(2));
             data.cal.valid(limits(1):limits(2)) = true;
             imagesc(data.pings.Sp)
