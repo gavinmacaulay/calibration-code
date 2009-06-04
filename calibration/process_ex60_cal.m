@@ -57,6 +57,9 @@ for i = 1:length(rawfilenames)
     [h d] = readEKRaw(rawfilenames{i}, 'Frequencies', freq, 'GPS', 0, 'PingRange', [1 1], ...
         'SampleRange', [1 1]);
     start_sample = round(2* start_depth / (d.pings(1).sampleinterval * d.pings(1).soundvelocity));
+    if start_sample == 0
+        start_sample = 1;
+    end
     stop_sample = round(2* stop_depth / (d.pings(1).sampleinterval * d.pings(1).soundvelocity));
     
     % and then read in the data for real
