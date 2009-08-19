@@ -49,7 +49,6 @@ if length(es60_zero_error) == 1 && es60_zero_error(1) == -1
     es60_zero_error = -1 * ones(1, length(rawfilenames));
 end
 
-
 for i = 1:length(rawfilenames)
     
     % read in the first ping to get the parameters that are needed to
@@ -277,6 +276,8 @@ range = zeros(length(pp),1);
 along = zeros(size(pp))';
 athwart = zeros(size(pp))';
 power = zeros(length(pp),9);
+phase_along = zeros(length(pp),9);
+phase_athwart = zeros(length(pp),9);
 
 for j = 1:length(pp)
     if (4 < pp(j) & (pp(j) + 4) < size(data.pings.Sp,1))
@@ -286,6 +287,8 @@ for j = 1:length(pp)
             athwart(j) = data.pings.athwartship(pp(j), j);
             ssv(j,:) = data.pings.Sv(pp(j)-4:pp(j)+4, j);
             power(j,:) = data.pings.power(pp(j)-4:pp(j)+4, j);
+            phase_along(j,:) = data.pings.alongship(pp(j)-4:pp(j)+4, j);
+            phase_athwart(j,:) = data.pings.athwartship(pp(j)-4:pp(j)+4, j);
             range(j) = pp(j);
 %         catch ME
 %             warning(num2str([pp(j), j]))
@@ -305,6 +308,9 @@ data.cal.range = (range + data.cal.start_sample) * sample_interval;
 
 along = along';
 athwart = athwart';
+phase_along = phase_along';
+phase_athwart = phase_athwart';
+
 clear tts ssv range pp power
 
 % Extract some useful data from the data structure for convenience
@@ -333,28 +339,56 @@ original.power = power;
 % The amp_ts and range data are now in sphere
 clear amp_ts range error
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Remove any echoes that are grossly wrong.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Parameters that determine how this code removes and uses sphere echoes
 
-% trim echoes to those within a little more than the 3 dB beamwidth
+% The std of the angle of the echoes through each echo has to be less than
+% or equal to this value for an echo to be kept.
+max_std_phase = .75; %[degrees]
+
+% Only consider echoes that have an angular position that is within 
+% trimToFactor times the beam angle
+trimToFactor = 1.7;
+
+% Any point more than maxDbDiff1 from the theoretical will be discarded as
+% an outlier. A coarse filter prior to actually working out the beam width
+maxdBDiff1 = 6; 
+
+% Beam compensated TS values more than this many dB above or below the
+% sphere TS are discarded. Done after working out the beam width.
+maxdBDiff2 = .5;
+
+% All echoes within these many degrees of an axis (or 45 deg to the axis)
+% will be used when doing the 4-panel plot of sphere echoes
+onAxisTol = 0.3; % [degrees]
+
+% All echoes within 0.0015 times the beam width will be considered to be
+% on-axis for the purposes of working out the on-axis gain.
+onAxisPercent = 0.015; % [ratio]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Remove any echoes that are likely to be noisy or wrong
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Filter out echoes with too much variation in their position through the echo. 
+i=find(std(phase_along(2:8,:)) <= max_std_phase & std(phase_athwart(2:8,:)) <= max_std_phase);
+[sphere amp_sv power phase_along phase_athwart] = trim_data(i, sphere, amp_sv, power, phase_along, phase_athwart);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% trim echoes to those within a bit more than the 3 dB beamwidth
 % This is not exact because we haven't yet calculated the
 % beam centre offsets, but it will do for the moment
-trimTo = 1.2 * mean([faBW psBW]) * 0.5;
+trimTo = trimToFactor * mean([faBW psBW]) * 0.5;
 i = find(abs(sphere(:,2)) < trimTo & abs(sphere(:,3)) < trimTo);
-sphere = sphere(i,:);
-amp_sv = amp_sv(:,i);
-power = power(:,i);
+[sphere amp_sv power phase_along phase_athwart] = trim_data(i, sphere, amp_sv, power, phase_along, phase_athwart);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Use the Simrad theoretical beampattern formula to trim echoes that are
 % grossly wrong
-maxdBDiff = 6; % any point more than maxDbDiff from the theoretical will be discarded as an outlier
 theoreticalTS = data.cal.sphere_ts - simradBeamCompensation(faBW, psBW, sphere(:,3), sphere(:,2));
 diffTS = theoreticalTS - sphere(:,1);
-i = find(abs(diffTS) <= maxdBDiff);
-sphere = sphere(i,:);
-amp_sv = amp_sv(:,i);
-power = power(:,i);
+i = find(abs(diffTS) <= maxdBDiff1);
+[sphere amp_sv power phase_along phase_athwart] = trim_data(i, sphere, amp_sv, power, phase_along, phase_athwart);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Fit the simrad beam pattern to the data. We get estimated beamwidth,
@@ -412,19 +446,17 @@ compensation = simradBeamCompensation(faBW, psBW, sphere(:,3), sphere(:,2));
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Filter outliers based on the beam compensated corrected data
-maxdBDiff = 1;
-i = find(sphere(:,1)+compensation <= peak_ts+maxdBDiff & ...
-    sphere(:,1)+compensation > peak_ts-maxdBDiff);
-sphere = sphere(i,:);
+i = find(sphere(:,1)+compensation <= peak_ts+maxdBDiff2 & ...
+    sphere(:,1)+compensation > peak_ts-maxdBDiff2);
+[sphere amp_sv power phase_along phase_athwart] = trim_data(i, sphere, amp_sv, power, phase_along, phase_athwart);
+% and some that trim_data doesn't do
 compensation = compensation(i);
 phi = phi(i);
 theta = theta(i);
-amp_sv = amp_sv(:,i);
-power = power(:,i);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Calculate the mean_ts from echoes that are on-axis
-on_axis = 0.015 * mean(faBW + psBW); % echoes within 1.5% of the beamangle are taken to be on axis. 
+on_axis = onAxisPercent * mean(faBW + psBW); % echoes within 1.5% of the beamangle are taken to be on axis. 
 
 % if there are no echoes found within 1.5%, make a note to enlarge the
 % search angle.
@@ -524,8 +556,7 @@ pause
 
 % Do a plot of the compensated and uncompensated echoes at a selection of
 % angles, similar to what one can get from the Simrad calibration program
-tol = 0.1; % [degrees]
-plotBeamSlices(sphere, outby, trimTo, faBW, psBW, peak_ts, tol)
+plotBeamSlices(sphere, outby, trimTo, faBW, psBW, peak_ts, onAxisTol)
 disp('This figure is intended for including in the calibration report')
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -809,6 +840,14 @@ axis equal
 set(gca, 'YLim', [-0.1 2.6])
 axis off
 hold off
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function [sphere amp_sv power phase_along phase_athwart] = trim_data(i, sphere, amp_sv, power, phase_along, phase_athwart);
+sphere = sphere(i,:);
+amp_sv = amp_sv(:,i);
+power = power(:,i);
+phase_along = phase_along(:,i);
+phase_athwart = phase_athwart(:,i);
 
 
 
