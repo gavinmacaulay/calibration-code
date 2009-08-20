@@ -358,7 +358,7 @@ maxdBDiff1 = 6;
 % sphere TS are discarded. Done after working out the beam width.
 % Note that this forces an upper limit on the RMS of the final fit to the
 % beam pattern.
-maxdBDiff2 = 1;
+maxdBDiff2 = .75;
 
 % All echoes within these many degrees of an axis (or 45 deg to the axis)
 % will be used when doing the 4-panel plot of sphere echoes
