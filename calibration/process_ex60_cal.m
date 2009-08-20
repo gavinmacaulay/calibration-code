@@ -344,7 +344,7 @@ clear amp_ts range error
 
 % The std of the angle of the echoes through each echo has to be less than
 % or equal to this value for an echo to be kept.
-max_std_phase = .75; %[degrees]
+max_std_phase = .3; %[degrees]
 
 % Only consider echoes that have an angular position that is within 
 % trimToFactor times the beam angle
@@ -356,7 +356,9 @@ maxdBDiff1 = 6;
 
 % Beam compensated TS values more than this many dB above or below the
 % sphere TS are discarded. Done after working out the beam width.
-maxdBDiff2 = .5;
+% Note that this forces an upper limit on the RMS of the final fit to the
+% beam pattern.
+maxdBDiff2 = 1;
 
 % All echoes within these many degrees of an axis (or 45 deg to the axis)
 % will be used when doing the 4-panel plot of sphere echoes
@@ -366,12 +368,16 @@ onAxisTol = 0.3; % [degrees]
 % on-axis for the purposes of working out the on-axis gain.
 onAxisPercent = 0.015; % [ratio]
 
+% When calculating the RMS fit of the data to the Simrad beam pattern, only
+% consider echoes out to (rmsOutTo * beamwidth) degrees.
+rmsOutTo = 0.5;
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Remove any echoes that are likely to be noisy or wrong
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Filter out echoes with too much variation in their position through the echo. 
-i=find(std(phase_along(2:8,:)) <= max_std_phase & std(phase_athwart(2:8,:)) <= max_std_phase);
+i=find(std(phase_along(4:6,:)) <= max_std_phase & std(phase_athwart(4:6,:)) <= max_std_phase);
 [sphere amp_sv power phase_along phase_athwart] = trim_data(i, sphere, amp_sv, power, phase_along, phase_athwart);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -615,12 +621,16 @@ disp(['Using alpha = ' num2str(data.cal.params.absorptioncoefficient*1000) ' dB/
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Calculate the RMS fit to the beam model
-fit_out_to = mean([psBW faBW]) * 0.5; % fit out to half the beamangle
+fit_out_to = mean([psBW faBW]) * rmsOutTo; % fit out to half the beamangle
 i = find(phi <= fit_out_to);
 beam_model = peak_ts - compensation;
-% Note: FAST doc halves the difference, otherwise is the same as here. I
-% think that the draft FAST report is wrong.
-rms_fit = sqrt( mean( (sphere(i,1) - beam_model(i)).^2 ) );
+% Note that the halving of the difference is not what was done here
+% previously. From a comparison of the rms value that the simrad
+% calibration program produces and what this formulae produced when using
+% the same input data, it appears that the Simrad program is halving the
+% difference, hence this formula now halves the difference and produces rms
+% values that are directly comparable to the Simrad results.
+rms_fit = sqrt( mean( ( (sphere(i,1) - beam_model(i))/2 ).^2 ) );
 disp(['RMS of fit to beam model out to ' num2str(fit_out_to) ' degrees = ' num2str(rms_fit) ' dB'])
 
 disp(['Produced using version ' scc_revision ' of this Matlab function'])
