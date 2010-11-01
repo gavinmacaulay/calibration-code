@@ -38,14 +38,54 @@ function process_ex60_cal(rawfilenames, save_filename, ...
     % sphere_ts is the TS of the sphere [dB]. This is optional, and defaults
     % to a frequency specific default value if not given.
     %
+    %
+    
+    % Optional single target and sphere processing parameters:
+    %
+    % The std of the arrival angle of each sample in each echo has to be
+    % less than or equal to this value for an echo to be kept.
+    p.max_std_phase = .3; %[degrees]
+    
+    % Only consider echoes that have an angular position that is within
+    % trimToFactor times the beam angle
+    p.trimToFactor = 1.7;
+    
+    % Any sphere echo more than maxDbDiff1 from the theoretical will be
+    % discarded as an outlier. Used in a coarse filter prior to actually
+    % working out the beam width.
+    p.maxdBDiff1 = 6;
+    
+    % Beam compensated TS values more than maxdBDiff2 dB above or below the
+    % sphere TS are discarded. Done after working out the beam width.
+    % Note that this forces an upper limit on the RMS of the final fit to the
+    % beam pattern.
+    p.maxdBDiff2 = .75;
+    
+    % All echoes within onAxisTol degrees of an axis (or 45 deg to the axis)
+    % will be used when doing the 4-panel plot of sphere echoes
+    p.onAxisTol = 0.3; % [degrees]
+    
+    % All echoes within 0.0015 times the beam width will be considered to
+    % be on-axis for the purposes of working out the on-axis gain.
+    p.onAxisPercent = 0.015; % [ratio]
+    
+    % When calculating the RMS fit of the data to the Simrad beam pattern, only
+    % consider echoes out to (rmsOutTo * beamwidth) degrees.
+    p.rmsOutTo = 0.5;
+
     % REQUIREMENTS
     % - Rick Towler's EchoLab toolbox for reading .raw data files
-    % - The Matlab Statistics Toolbox for curve fitting
-    % - The subplot1 function from the Mathworks File Exchange
+    % - The subplot1 function from the MathWorks File Exchange
 
-    % Written by G Macaulay, NIWA
-
+    % Written by Gavin Macaulay while employed at New Zealand's National
+    % Institute of Water and Atmospheric Research Ltd, PO Box 14-901,
+    % Kilbirnie, Wellington, New Zealand.
+    % www.niwa.co.nz
     %
+
+    % Test to stamp the output with (e.g., a version number). Only works
+    % automatically if you keep this code in a subversion source code
+    % control system. 
     scc_revision = '$Revision$';
     % pick out just the number
     scc_revision = regexprep(scc_revision, '[^\d]', '');
@@ -57,6 +97,10 @@ function process_ex60_cal(rawfilenames, save_filename, ...
         return
     end
 
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Part 1: Selection of echogram regions that contain sphere echoes
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    
     % If es60_zero_error value indicates that we dealing with EK60 data, make
     % sure that we have a value for each EK60 raw file that is to be processed.
     if length(es60_zero_error) == 1 && es60_zero_error(1) == -1
@@ -282,13 +326,13 @@ function process_ex60_cal(rawfilenames, save_filename, ...
 
     % Now that the appropriate pings, etc, are selected, do the actual
     % calibration processing.
-    process_data(data, scc_revision)
+    process_data(data, p, scc_revision)
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% This function does the calibration analysis
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function process_data(data, scc_revision)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Part 2: Processing of sphere echoes to yield calibration parameters
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function process_data(data, p, scc_revision)
 
     % Extract and derive some data from the .raw files
     sample_interval = double(data.cal.params.soundvelocity * data.pings.sampleinterval * 0.5); % [m]
@@ -371,51 +415,18 @@ function process_data(data, scc_revision)
     
     % The amp_ts and range data are now in sphere
     clear amp_ts range error
-    
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    % Parameters that determine how this code filters out 'bad' sphere echoes
-    
-    % The std of the angle of the echoes through each echo has to be less than
-    % or equal to this value for an echo to be kept.
-    max_std_phase = .3; %[degrees]
-    
-    % Only consider echoes that have an angular position that is within
-    % trimToFactor times the beam angle
-    trimToFactor = 1.7;
-    
-    % Any point more than maxDbDiff1 from the theoretical will be discarded as
-    % an outlier. A coarse filter prior to actually working out the beam width
-    maxdBDiff1 = 6;
-    
-    % Beam compensated TS values more than this many dB above or below the
-    % sphere TS are discarded. Done after working out the beam width.
-    % Note that this forces an upper limit on the RMS of the final fit to the
-    % beam pattern.
-    maxdBDiff2 = .75;
-    
-    % All echoes within these many degrees of an axis (or 45 deg to the axis)
-    % will be used when doing the 4-panel plot of sphere echoes
-    onAxisTol = 0.3; % [degrees]
-    
-    % All echoes within 0.0015 times the beam width will be considered to be
-    % on-axis for the purposes of working out the on-axis gain.
-    onAxisPercent = 0.015; % [ratio]
-    
-    % When calculating the RMS fit of the data to the Simrad beam pattern, only
-    % consider echoes out to (rmsOutTo * beamwidth) degrees.
-    rmsOutTo = 0.5;
-    
+        
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Remove any echoes that are likely to be noisy or wrong
     
     % Filter out echoes with too much variation in their position through the echo.
-    i=find(std(phase_along(4:6,:)) <= max_std_phase & std(phase_athwart(4:6,:)) <= max_std_phase);
+    i=find(std(phase_along(4:6,:)) <= p.max_std_phase & std(phase_athwart(4:6,:)) <= p.max_std_phase);
     [sphere amp_sv power phase_along phase_athwart] = trim_data(i, sphere, amp_sv, power, phase_along, phase_athwart);
     
     % Trim echoes to those within a bit more than the 3 dB beamwidth
     % This is not exact because we haven't yet calculated the
     % beam centre offsets, but it will do for the moment
-    trimTo = trimToFactor * mean([faBW psBW]) * 0.5;
+    trimTo = p.trimToFactor * mean([faBW psBW]) * 0.5;
     i = find(abs(sphere(:,2)) < trimTo & abs(sphere(:,3)) < trimTo);
     [sphere amp_sv power phase_along phase_athwart] = trim_data(i, sphere, amp_sv, power, phase_along, phase_athwart);
     
@@ -423,7 +434,7 @@ function process_data(data, scc_revision)
     % grossly wrong
     theoreticalTS = data.cal.sphere_ts - simradBeamCompensation(faBW, psBW, sphere(:,3), sphere(:,2));
     diffTS = theoreticalTS - sphere(:,1);
-    i = find(abs(diffTS) <= maxdBDiff1);
+    i = find(abs(diffTS) <= p.maxdBDiff1);
     [sphere amp_sv power phase_along phase_athwart] = trim_data(i, sphere, amp_sv, power, phase_along, phase_athwart);
     
     % Fit the simrad beam pattern to the data. We get estimated beamwidth,
@@ -476,8 +487,8 @@ function process_data(data, scc_revision)
     compensation = simradBeamCompensation(faBW, psBW, sphere(:,3), sphere(:,2));
     
     % Filter outliers based on the beam compensated corrected data
-    i = find(sphere(:,1)+compensation <= peak_ts+maxdBDiff2 & ...
-        sphere(:,1)+compensation > peak_ts-maxdBDiff2);
+    i = find(sphere(:,1)+compensation <= peak_ts+p.maxdBDiff2 & ...
+        sphere(:,1)+compensation > peak_ts-p.maxdBDiff2);
     [sphere amp_sv power phase_along phase_athwart] = trim_data(i, sphere, amp_sv, power, phase_along, phase_athwart);
     
     % And some data that trim_data doesn't do
@@ -486,7 +497,7 @@ function process_data(data, scc_revision)
     theta = theta(i);
     
     % Calculate the mean_ts from echoes that are on-axis
-    on_axis = onAxisPercent * mean(faBW + psBW);
+    on_axis = p.onAxisPercent * mean(faBW + psBW);
     
     % If there are no echoes found within onAxisPercent, make a note to enlarge the
     % search angle.
@@ -587,7 +598,7 @@ function process_data(data, scc_revision)
     
     % Do a plot of the compensated and uncompensated echoes at a selection of
     % angles, similar to what one can get from the Simrad calibration program
-    plotBeamSlices(sphere, outby, trimTo, faBW, psBW, peak_ts, onAxisTol)
+    plotBeamSlices(sphere, outby, trimTo, faBW, psBW, peak_ts, p.onAxisTol)
     disp('This figure is intended for including in a calibration report.')
     
     % Calculate the sa correction value informed by draft formulae
@@ -643,7 +654,7 @@ function process_data(data, scc_revision)
     disp(['Using alpha = ' num2str(data.cal.params.absorptioncoefficient*1000) ' dB/km.'])
     
     % Calculate the RMS fit to the beam model
-    fit_out_to = mean([psBW faBW]) * rmsOutTo; % fit out to half the beamangle
+    fit_out_to = mean([psBW faBW]) * p.rmsOutTo; % fit out to half the beamangle
     i = find(phi <= fit_out_to);
     beam_model = peak_ts - compensation;
     
@@ -659,7 +670,7 @@ function process_data(data, scc_revision)
     disp(['Produced using version ' scc_revision ' of this Matlab function.'])
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function [offset_fa, bw_fa, offset_ps, bw_ps, pts_used, peak, exitflag] ...
     = fit_beampattern(ts, echoangle_ps, echoangle_fa, limit, bw)
     % A function to estimate the beamwidth from the given data. TS and echoangle
@@ -686,6 +697,7 @@ function [offset_fa, bw_fa, offset_ps, bw_ps, pts_used, peak, exitflag] ...
     % (removes some sensitivity to outliers)
     % Find all points within limit dB of the theoretical beam patter
     ii = find(abs(ts - peak + simradBeamCompensation(bw_fa, bw_ps, echoangle_fa-offset_fa, echoangle_ps-offset_ps)) < limit);
+    
     % A new function to minimise that only uses the points from ii
     shape = @(x) sum((ts(ii) - x(5) + simradBeamCompensation(x(1), x(2), echoangle_fa(ii)-x(3), echoangle_ps(ii)-x(4))) .^2);
     result = fminsearch(shape, [bw_fa, bw_ps, offset_fa, offset_ps, peak]);
@@ -697,7 +709,7 @@ function [offset_fa, bw_fa, offset_ps, bw_ps, pts_used, peak, exitflag] ...
     pts_used = ii;
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function compensation = simradBeamCompensation(faBW, psBW, faAngle, psAngle)
     % Calculates the simard beam compensation given the beam angles and
     % positions in the beam
@@ -708,7 +720,7 @@ function compensation = simradBeamCompensation(faBW, psBW, faAngle, psAngle)
     compensation = 6.0206 * (part1.^2 + part2.^2 - 0.18*part1.^2.*part2.^2);
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Get a nominal ts for the given frequency
 function sphere_ts = getSphereTS(freq)
     % These are from Fisheries Acoustics, Simmonds & MacLennan, 2005.
@@ -724,13 +736,14 @@ function sphere_ts = getSphereTS(freq)
         case 200000
             sphere_ts = -39.9;
         otherwise
+            sphere_ts = NaN;
             disp(['Sphere TS not known for a freq of ' num2str(freq) ' Hz'])
     end
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function [phi, theta] = simradAnglesToSpherical(fa, ps)
-    % Convert the angles to conical angle.
+    % Convert the cartesian angles to conical angle.
     t1 = tan(deg2rad(ps));
     t2 = tan(deg2rad(fa));
     phi = rad2deg(atan(sqrt(t1.*t1 + t2.*t2)));
@@ -743,10 +756,10 @@ function [phi, theta] = simradAnglesToSpherical(fa, ps)
     theta(i) = 180+theta(i);
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function plotBeamSlices(sphere, outby, trimTo, faBW, psBW, peak_ts, tol)
     % Produce a plot of the sphere echoes and the fitted beam pattern at 4
-    % slices through the beam
+    % slices (0 45, 90, and 135 degrees) through the beam.
     %
     % trimTo is the angle (degrees) to plot out to
     % tol is the angle (degrees) to take sphere echoes from for each slice
@@ -828,12 +841,12 @@ function plotBeamSlices(sphere, outby, trimTo, faBW, psBW, peak_ts, tol)
     for i = 1:length(angles)
         subplot1(i)
         pos = get(gca, 'Position');
-        ax = axes('Position', [pos(1)+0.02*pos(3) pos(2)+0.7*pos(4) 0.2*pos(3) 0.2*pos(4)]);
+        axes('Position', [pos(1)+0.02*pos(3) pos(2)+0.7*pos(4) 0.2*pos(3) 0.2*pos(4)]);
         plot_angle_diagram(angles(i))
     end
 end
     
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function plot_angle_diagram(angle)
     % Plots a little figure of the ship and an angled line on the given axes
     
@@ -850,7 +863,7 @@ function plot_angle_diagram(angle)
     length = 0.9;
     plot(centre(1) + r*cos(theta), centre(2) + r*sin(theta), 'k')
     
-    % the angled line
+    % The angled line
     switch angle
         case 0
             plot([centre(1) centre(1)], [centre(2)-length centre(2)+length], 'k', 'LineWidth', 2)
@@ -867,6 +880,7 @@ function plot_angle_diagram(angle)
     end
     
     axis equal
+    
     % The bottom of some figures get chopped off when removing the axis, so
     % extend the axis a little to prevent this
     set(gca, 'YLim', [-0.1 2.6])
@@ -874,7 +888,7 @@ function plot_angle_diagram(angle)
     hold off
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function [sphere amp_sv power phase_along phase_athwart] = trim_data(i, sphere, amp_sv, power, phase_along, phase_athwart)
     % A function to eliminate specified entries in a set of vectors.
     
