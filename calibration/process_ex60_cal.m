@@ -38,7 +38,50 @@ function process_ex60_cal(rawfilenames, save_filename, ...
     % sphere_ts is the TS of the sphere [dB]. This is optional, and defaults
     % to a frequency specific default value if not given.
     %
+    % HOW TO USE THIS CODE
     %
+    % There are two parts to this code:
+    % 1. Drawing a region on an echogram that includes the echo from the
+    %    calibration sphere, then blanking out regions of questionable data.
+    % 2. Processing the sphere data to yield calibration parameters and
+    %    graphs.
+    %
+    % Part 1 involves some work on your part, part 2 almost nothing.
+    % 
+    % - Call this function with appropriate input parameters.
+    % - Using the mouse, left-click to define a region that includes the
+    %   echoes from the sphere. Instructions on how to close the
+    %   region are given in the Matlab command window.
+    % - The code will indicate the detected sphere echo with a white line
+    % - Blank out ping ranges using the left mouse button where the
+    %   detected sphere echo is wrong (e.g., interference from fish, sphere
+    %   moved out of the beam, etc). Instructions on how to end this mode
+    %   and undo a blanking are given in the Matlab command window.
+    % - This is the end of part 1. Intermediate results are saved to disk.
+    % 
+    % Part 2 continues on from part 1, or can be run separately.
+    %
+    % - View the resulting graphs (there is a pause between each graph - 
+    %   you'll need to press a key to get to the next graph. Cut&paste as 
+    %   necessary for inclusion in a calibration report.
+    % - Note the output in the Matlab command window where you'll find the
+    %   calibration parameters.
+    % - It is suggested that you cut/paste this output into a text file for
+    %   later reference.
+    
+    % ES60/70 TRIANGLE WAVE ERROR
+    % 
+    % This code will correct for the triangle wave error. It does this by
+    % expecting to be told the ping number at which the triangle wave error
+    % is zero. This ping number can be obtained from another function, used
+    % like this:
+    %
+    % e = estimate_es60_zero_error_ping('L0001-XX-YY.raw', 38000);
+    %
+    % Use the value returned in e as the 'es60_zero_error' input to the
+    % process_ex60_cal() function. The estimate_es60...() function will
+    % produce a plot of the uncorrected and corrected es60/70 data.
+
     % REQUIREMENTS
     %
     % - Rick Towler's EchoLab toolbox for reading .raw data files.
@@ -486,10 +529,10 @@ function process_data(data, p, scc_revision)
     sphere(:,3) = sphere(:,3) - offset_fa;
     
     % Convert the angles to conical angle for use later on
-    t1 = tan(deg2rad(sphere(:,2)));
-    t2 = tan(deg2rad(sphere(:,3)));
-    phi = rad2deg(atan(sqrt(t1.*t1 + t2.*t2)));
-    theta = rad2deg(atan2(t1, t2));
+    t1 = tan(sphere(:,2) * pi/180);
+    t2 = tan(sphere(:,3) * pi/180);
+    phi = atan(sqrt(t1.*t1 + t2.*t2)) * 180/pi;
+    theta = atan2(t1, t2) * 180/pi;
     
     % Calculate beam compensation for each echo
     compensation = simradBeamCompensation(faBW, psBW, sphere(:,3), sphere(:,2));
@@ -753,10 +796,10 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function [phi, theta] = simradAnglesToSpherical(fa, ps)
     % Convert the cartesian angles to conical angle.
-    t1 = tan(deg2rad(ps));
-    t2 = tan(deg2rad(fa));
-    phi = rad2deg(atan(sqrt(t1.*t1 + t2.*t2)));
-    theta = rad2deg(atan2(t1, t2));
+    t1 = tan(ps * pi/180);
+    t2 = tan(fa * pi/180);
+    phi = atan(sqrt(t1.*t1 + t2.*t2)) * 180/pi;
+    theta = atan2(t1, t2) * 180/pi;
     
     % Convert the angles so that we get negative phi's to allow for plotting of
     % complete beam pattern slice arcs
