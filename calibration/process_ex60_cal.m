@@ -40,6 +40,7 @@ function process_ex60_cal(rawfilenames, save_filename, ...
     %
     %
     % REQUIREMENTS
+    %
     % - Rick Towler's EchoLab toolbox for reading .raw data files.
     %    Works with version 4-16-10.
     % - The subplot1 function from the MathWorks File Exchange
@@ -47,10 +48,12 @@ function process_ex60_cal(rawfilenames, save_filename, ...
     %    Matlab functions.
     % 
 
+    % ACKNOWLEDGEMENTS
+    %
     % Written by Gavin Macaulay while employed at New Zealand's National
     % Institute of Water and Atmospheric Research Ltd, PO Box 14-901,
     % Kilbirnie, Wellington, New Zealand.
-    % www.niwa.co.nz
+    % http://www.niwa.co.nz
     %
 
     % Optional single target and sphere processing parameters:
@@ -86,13 +89,15 @@ function process_ex60_cal(rawfilenames, save_filename, ...
     % consider echoes out to (rmsOutTo * beamwidth) degrees.
     p.rmsOutTo = 0.5;
 
-
     % Test to stamp the output with (e.g., a version number). Only works
-    % automatically if you keep this code in a subversion source code
+    % automatically if you keep this code in the subversion source code
     % control system. 
     scc_revision = '$Revision$';
     % pick out just the number
     scc_revision = regexprep(scc_revision, '[^\d]', '');
+    if isempty(scc_revision)
+        scc_revision = 'unknown';
+    end
 
     % Load in partially processed data and re-run the final set of processing.
     if nargin == 1
@@ -670,7 +675,8 @@ function process_data(data, p, scc_revision)
     rms_fit = sqrt( mean( ( (sphere(i,1) - beam_model(i))/2 ).^2 ) );
     disp(['RMS of fit to beam model out to ' num2str(fit_out_to) ' degrees = ' num2str(rms_fit) ' dB.'])
     
-    disp(['Produced using version ' scc_revision ' of this Matlab function.'])
+    disp(['Produced using version ' scc_revision ' of this Matlab function ' ...
+        'on ' datestr(now())])
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
