@@ -39,7 +39,20 @@ function process_ex60_cal(rawfilenames, save_filename, ...
     % to a frequency specific default value if not given.
     %
     %
-    
+    % REQUIREMENTS
+    % - Rick Towler's EchoLab toolbox for reading .raw data files.
+    %    Works with version 4-16-10.
+    % - The subplot1 function from the MathWorks File Exchange
+    % - Gavin Macaulay's es60_error() and estimate_es60_zero_error_ping() 
+    %    Matlab functions.
+    % 
+
+    % Written by Gavin Macaulay while employed at New Zealand's National
+    % Institute of Water and Atmospheric Research Ltd, PO Box 14-901,
+    % Kilbirnie, Wellington, New Zealand.
+    % www.niwa.co.nz
+    %
+
     % Optional single target and sphere processing parameters:
     %
     % The std of the arrival angle of each sample in each echo has to be
@@ -73,15 +86,6 @@ function process_ex60_cal(rawfilenames, save_filename, ...
     % consider echoes out to (rmsOutTo * beamwidth) degrees.
     p.rmsOutTo = 0.5;
 
-    % REQUIREMENTS
-    % - Rick Towler's EchoLab toolbox for reading .raw data files
-    % - The subplot1 function from the MathWorks File Exchange
-
-    % Written by Gavin Macaulay while employed at New Zealand's National
-    % Institute of Water and Atmospheric Research Ltd, PO Box 14-901,
-    % Kilbirnie, Wellington, New Zealand.
-    % www.niwa.co.nz
-    %
 
     % Test to stamp the output with (e.g., a version number). Only works
     % automatically if you keep this code in a subversion source code
@@ -93,7 +97,7 @@ function process_ex60_cal(rawfilenames, save_filename, ...
     % Load in partially processed data and re-run the final set of processing.
     if nargin == 1
         load(rawfilenames) % not reall rawfilename, but rather save_filename
-        process_data(data, scc_revision)
+        process_data(data, p, scc_revision)
         return
     end
 
@@ -162,7 +166,6 @@ function process_ex60_cal(rawfilenames, save_filename, ...
         sphere_ts = getSphereTS(data.pings.frequency(1));
     end
 
-
     % Override some of the cal parameters based on CTD data
     calParams = readEKRaw_GetCalParms(header, data);
 
@@ -172,7 +175,8 @@ function process_ex60_cal(rawfilenames, save_filename, ...
     end
 
     % Get Sp and Sv versions of the actual echo samples
-    data = readEKRaw_ConvertPower(data, calParams, 3, {'KeepPower', true});
+    data = readEKRaw_Power2Sv(data, calParams, 'KeepPower', true);
+    data = readEKRaw_Power2Sp(data, calParams, 'KeepPower', true);
     data = readEKRaw_ConvertAngles(data, calParams);
 
     % Keep the cal params around for later
@@ -399,11 +403,9 @@ function process_data(data, p, scc_revision)
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Apply an ES60 triangle wave correction to the data
-    error = 10.^(data.pings.es60_error/20); % convert from dB to a ratio
-    
-    amp_ts = amp_ts ./ error';
-    amp_sv = amp_sv ./ repmat(error,9,1);
-    power = power ./ repmat(error,9,1);
+    amp_ts = amp_ts - data.pings.es60_error';
+    amp_sv = amp_sv - repmat(data.pings.es60_error, 9, 1);
+    power = power - repmat(data.pings.es60_error, 9, 1);
     
     % And merge some info into one matrix for convenience
     sphere = [amp_ts athwart along data.cal.range];
@@ -420,7 +422,8 @@ function process_data(data, p, scc_revision)
     % Remove any echoes that are likely to be noisy or wrong
     
     % Filter out echoes with too much variation in their position through the echo.
-    i=find(std(phase_along(4:6,:)) <= p.max_std_phase & std(phase_athwart(4:6,:)) <= p.max_std_phase);
+    i = find(std(phase_along(4:6,:)) <= p.max_std_phase & ...
+        std(phase_athwart(4:6,:)) <= p.max_std_phase);
     [sphere amp_sv power phase_along phase_athwart] = trim_data(i, sphere, amp_sv, power, phase_along, phase_athwart);
     
     % Trim echoes to those within a bit more than the 3 dB beamwidth
