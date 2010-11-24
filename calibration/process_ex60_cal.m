@@ -198,8 +198,8 @@ function process_ex60_cal(rawfilenames, save_filename, ...
             data = d;
         elseif i > 1
             data.pings.power = [data.pings.power d.pings.power];
-            data.pings.alongship = [data.pings.alongship d.pings.alongship];
-            data.pings.athwartship = [data.pings.athwartship d.pings.athwartship];
+            data.pings.alongship_e = [data.pings.alongship_e d.pings.alongship_e];
+            data.pings.athwartship_e = [data.pings.athwartship_e d.pings.athwartship_e];
             data.pings.es60_error = [data.pings.es60_error d.pings.es60_error];
         end
     end
