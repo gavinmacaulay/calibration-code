@@ -1,9 +1,9 @@
 function process_ex60_cal(rawfilenames, save_filename, ...
-    es60_zero_error, start_depth, stop_depth, freq, c, alpha, sphere_ts)
+    es60_zero_error, start_depth, stop_depth, freq, c, alpha, sphere_ts, transceiver)
     % Usage:
     %
     % process_es60_cal(dfilenames, save_filename, es60_zero_error, ...
-    %    start_depth, stop_depth, freq, c, alpha, sphere_ts)
+    %    start_depth, stop_depth, freq, c, alpha, sphere_ts, transceiver)
     % OR
     % process_es60cal(save_filename)
     %
@@ -38,6 +38,12 @@ function process_ex60_cal(rawfilenames, save_filename, ...
     % sphere_ts is the TS of the sphere [dB]. This is optional, and defaults
     % to a frequency specific default value if not given.
     %
+    % transceiver is an integer which allows the user to specify which GPT's
+    % data to use. Usually in a multi-channel file the individual channel is
+    % selected by frequency. If, however, there is a multi-channel file with
+    % several GPTs on the same frequency but using different transducers this
+    % parameter allows selection of the desired data. Default is 1.
+
     % HOW TO USE THIS CODE
     %
     % There are two parts to this code:
@@ -144,7 +150,7 @@ function process_ex60_cal(rawfilenames, save_filename, ...
 
     % Load in partially processed data and re-run the final set of processing.
     if nargin == 1
-        load(rawfilenames) % not reall rawfilename, but rather save_filename
+        load(rawfilenames) % not real rawfilename, but rather save_filename
         process_data(data, p, scc_revision)
         return
     end
@@ -169,17 +175,35 @@ function process_ex60_cal(rawfilenames, save_filename, ...
         disp(['Loading raw file: ' rawfilenames{i} '.'])
         [h d] = readEKRaw(rawfilenames{i}, 'Frequencies', freq, 'GPS', 0, 'PingRange', [1 1], ...
             'SampleRange', [1 1]);
-        start_sample = round(2 * start_depth / (d.pings(1).sampleinterval * d.pings(1).soundvelocity));
+        
+        if (h.transceivercount > 1) && ~exist('transceiver','var')
+            warning('No transceiver specified for multi-transceiver data. Using transceiver 1.')
+        end
+        
+        if ~exist('transceiver','var')
+            transceiver = 1;
+        end
+
+        start_sample = round(2 * start_depth / (d.pings(transceiver).sampleinterval * d.pings(1).soundvelocity));
         if start_sample == 0
             start_sample = 1;
         end
-        stop_sample = round(2* stop_depth / (d.pings(1).sampleinterval * d.pings(1).soundvelocity));
+        stop_sample = round(2* stop_depth / (d.pings(1).sampleinterval * d.pings(transceiver).soundvelocity));
 
         % And then read in the data for real, selecting just that between the
         % given start and end ranges.
         [h d] = readEKRaw(rawfilenames{i}, 'Frequencies', freq, 'GPS', 0, 'PingRange', [1 Inf],...
             'SampleRange', [start_sample stop_sample]);
 
+        if (h.transceivercount) > 1           % Take only the data for the desired transciever
+            fieldnamelist = fieldnames(d);    % looping over all fields in structure d
+            for j = 1:length(fieldnamelist)
+                dtemp.(fieldnamelist{j}) = d.(fieldnamelist{j})(transceiver);
+            end
+            d = dtemp;
+            clear dtemp;
+        end
+        
         % Calculate the correction for the ES60 triange wave error if required - it is
         % applied later.
         d.cal.es60_zero_error = es60_zero_error;
