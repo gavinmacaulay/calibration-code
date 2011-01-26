@@ -165,7 +165,7 @@ function process_ex60_cal(rawfilenames, save_filename, ...
         es60_zero_error = -1 * ones(1, length(rawfilenames));
     end
 
-    % Load in a ll of the .raw files and merge the data together for subsequent
+    % Load in all of the .raw files and merge the data together for subsequent
     % processing.
 
     for i = 1:length(rawfilenames)
@@ -456,8 +456,13 @@ function process_data(data, p, scc_revision)
     data.cal.sv = ssv;
     data.cal.power = power;
     
-    % Convert the range from samples to metres
-    data.cal.range = (range + data.cal.start_sample) * sample_interval;
+    % Convert the range from samples to metres. Range to the peak target
+    % amplitude is counted from the peak of the transmit pulse, which is
+    % taken to occur half the transmit pulse length plus half the sample
+    % interval.
+    data.cal.range = (range + data.cal.start_sample) * sample_interval ...
+        - (data.pings.soundvelocity * data.pings.pulselength / 2 ...
+        + sample_interval/2);
     
     along = along';
     athwart = athwart';
