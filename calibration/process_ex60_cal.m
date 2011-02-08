@@ -397,6 +397,18 @@ function process_ex60_cal(rawfilenames, save_filename, ...
     data.cal.start_sample = start_sample;
     data.cal.sphere_ts = sphere_ts;
 
+    % Correct Sp and Sv for range over and above that which is done by
+    % default by EchoLab (EchoLab decreases the range used in TVG
+    % calculations for Sv by 2 samples and for Sp by 0 samples). Here we
+    % subtract an additional 2 samples from Sv and 4 sampes from Sp from 
+    % the range used in the TVG to match the output from the Lobe program.
+    dR_Sv = 2 * data.cal.params.soundvelocity * data.pings.sampleinterval / 2;
+    dR_Sp = 4 * data.cal.params.soundvelocity * data.pings.sampleinterval / 2;
+    Sp_tvg_adjust = 2*alpha*dR_Sp + 40*log10(1-10.^(log10(dR_Sp) - log10(data.pings.range)));
+    Sv_tvg_adjust = 2*alpha*dR_Sv + 20*log10(1-10.^(log10(dR_Sv) - log10(data.pings.range)));
+    data.pings.Sp = data.pings.Sp + repmat(Sp_tvg_adjust, 1, size(data.pings.Sp,2));
+    data.pings.Sv = data.pings.Sv + repmat(Sv_tvg_adjust, 1, size(data.pings.Sv,2));
+    
     % And save the data to date.
     save(save_filename, 'data')
 
