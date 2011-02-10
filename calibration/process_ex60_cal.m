@@ -246,8 +246,7 @@ function process_ex60_cal(rawfilenames, save_filename, ...
         calParams.absorptioncoefficient = alpha/1000; % convert to dB/m
     end
 
-    % Get Sp and Sv versions of the actual echo samples
-    data = readEKRaw_Power2Sv(data, calParams, 'KeepPower', true);
+    % Get Sp version of the actual echo samples
     data = readEKRaw_Power2Sp(data, calParams, 'KeepPower', true);
     data = readEKRaw_ConvertAngles(data, calParams);
 
@@ -388,7 +387,6 @@ function process_ex60_cal(rawfilenames, save_filename, ...
     % reason).
 
     data.pings.Sp = double(data.pings.Sp(:, data.cal.valid));
-    data.pings.Sv = double(data.pings.Sv(:, data.cal.valid));
     data.pings.power = double(data.pings.power(:, data.cal.valid));
     data.pings.alongship = double(data.pings.alongship(:, data.cal.valid));
     data.pings.athwartship = double(data.pings.athwartship(:, data.cal.valid));
@@ -396,17 +394,12 @@ function process_ex60_cal(rawfilenames, save_filename, ...
     data.pings.es60_error = data.pings.es60_error(:, data.cal.valid);
     data.cal.sphere_ts = sphere_ts;
 
-    % Correct Sp and Sv for range over and above that which is done by
-    % default by EchoLab (EchoLab decreases the range used in TVG
-    % calculations for Sv by 2 samples and for Sp by 0 samples). Here we
-    % subtract an additional 2 samples from Sv and 4 sampes from Sp from 
-    % the range used in the TVG to match the output from the Lobe program.
-    dR_Sv = 2 * data.cal.params.soundvelocity * data.pings.sampleinterval / 2;
+    % Correct Sp for range over and above that which is done by
+    % default by EchoLab. Here we subtract an additional4 samples from Sp
+    % from the range used in the TVG to match the output from the Lobe program.
     dR_Sp = 4 * data.cal.params.soundvelocity * data.pings.sampleinterval / 2;
     Sp_tvg_adjust = 2*alpha*dR_Sp + 40*log10(1-10.^(log10(dR_Sp) - log10(data.pings.range)));
-    Sv_tvg_adjust = 2*alpha*dR_Sv + 20*log10(1-10.^(log10(dR_Sv) - log10(data.pings.range)));
     data.pings.Sp = data.pings.Sp + repmat(Sp_tvg_adjust, 1, size(data.pings.Sp,2));
-    data.pings.Sv = data.pings.Sv + repmat(Sv_tvg_adjust, 1, size(data.pings.Sv,2));
     
     % And save the data to date.
     save(save_filename, 'data')
@@ -430,10 +423,9 @@ function process_data(data, p, scc_revision)
     %ba_db = data.config.equivalentbeamangle; % [dB re 1 steradian], two-way equivalent beam angle
     
     % Pick out the peak amplitudes for use later on, and discard the
-    % rest. For Sv and power keep the 9 samples that surround the peak too.
+    % rest. For power keep the 9 samples that surround the peak too.
     pp = data.cal.peak_pos;
     tts = zeros(size(pp));
-    ssv = zeros(length(pp),9);
     range = zeros(length(pp),1);
     along = zeros(size(pp))';
     athwart = zeros(size(pp))';
@@ -447,7 +439,6 @@ function process_data(data, p, scc_revision)
             tts(j) = data.pings.Sp(pp(j), j);
             along(j) = data.pings.alongship(pp(j), j);
             athwart(j) = data.pings.athwartship(pp(j), j);
-            ssv(j,:) = data.pings.Sv(pp(j)-4:pp(j)+4, j);
             power(j,:) = data.pings.power(pp(j)-4:pp(j)+4, j);
             phase_along(j,:) = data.pings.alongship(pp(j)-4:pp(j)+4, j);
             phase_athwart(j,:) = data.pings.athwartship(pp(j)-4:pp(j)+4, j);
@@ -457,14 +448,12 @@ function process_data(data, p, scc_revision)
             %             warning(num2str(size(data.pings.Sp)))
             %             warning(num2str(size(data.pings.alongship)))
             %             warning(num2str(size(data.pings.athwartship)))
-            %             warning(num2str(size(data.pings.Sv)))
             %             warning(num2str(size(data.pings.power)))
             %         end
         end
     end
     
     data.cal.ts = tts;
-    data.cal.sv = ssv;
     data.cal.power = power;
     
     % Convert the range from samples to metres. Range to the peak target
@@ -479,11 +468,10 @@ function process_data(data, p, scc_revision)
     phase_along = phase_along';
     phase_athwart = phase_athwart';
     
-    clear tts ssv range pp power
+    clear tts range pp power
     
     % Extract some useful data from the data structure for convenience
     amp_ts = data.cal.ts;
-    amp_sv = data.cal.sv';
     power = data.cal.power';
     faBW = data.config.beamwidthalongship; % [degrees]
     psBW = data.config.beamwidthathwartship; % [degrees]
@@ -491,7 +479,6 @@ function process_data(data, p, scc_revision)
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Apply an ES60 triangle wave correction to the data
     amp_ts = amp_ts - data.pings.es60_error';
-    amp_sv = amp_sv - repmat(data.pings.es60_error, 9, 1);
     power = power - repmat(data.pings.es60_error, 9, 1);
     
     % And merge some info into one matrix for convenience
@@ -499,7 +486,6 @@ function process_data(data, p, scc_revision)
     
     % Keep a copy of the original set of data
     original.sphere = sphere;
-    original.amp_sv = amp_sv;
     original.power = power;
     
     % The amp_ts and range data are now in sphere
@@ -511,21 +497,21 @@ function process_data(data, p, scc_revision)
     % Filter out echoes with too much variation in their position through the echo.
     i = find(std(phase_along(4:6,:)) <= p.max_std_phase & ...
         std(phase_athwart(4:6,:)) <= p.max_std_phase);
-    [sphere amp_sv power phase_along phase_athwart] = trim_data(i, sphere, amp_sv, power, phase_along, phase_athwart);
+    [sphere power phase_along phase_athwart] = trim_data(i, sphere, power, phase_along, phase_athwart);
     
     % Trim echoes to those within a bit more than the 3 dB beamwidth
     % This is not exact because we haven't yet calculated the
     % beam centre offsets, but it will do for the moment
     trimTo = p.trimToFactor * mean([faBW psBW]) * 0.5;
     i = find(abs(sphere(:,2)) < trimTo & abs(sphere(:,3)) < trimTo);
-    [sphere amp_sv power phase_along phase_athwart] = trim_data(i, sphere, amp_sv, power, phase_along, phase_athwart);
+    [sphere power phase_along phase_athwart] = trim_data(i, sphere, power, phase_along, phase_athwart);
     
     % Use the Simrad theoretical beampattern formula to trim echoes that are
     % grossly wrong
     theoreticalTS = data.cal.sphere_ts - simradBeamCompensation(faBW, psBW, sphere(:,3), sphere(:,2));
     diffTS = theoreticalTS - sphere(:,1);
     i = find(abs(diffTS) <= p.maxdBDiff1);
-    [sphere amp_sv power phase_along phase_athwart] = trim_data(i, sphere, amp_sv, power, phase_along, phase_athwart);
+    [sphere power phase_along phase_athwart] = trim_data(i, sphere, power, phase_along, phase_athwart);
     
     % Fit the simrad beam pattern to the data. We get estimated beamwidth,
     % offsets, and peak value from this.
@@ -579,7 +565,7 @@ function process_data(data, p, scc_revision)
     % Filter outliers based on the beam compensated corrected data
     i = find(sphere(:,1)+compensation <= peak_ts+p.maxdBDiff2 & ...
         sphere(:,1)+compensation > peak_ts-p.maxdBDiff2);
-    [sphere amp_sv power phase_along phase_athwart] = trim_data(i, sphere, amp_sv, power, phase_along, phase_athwart);
+    [sphere power phase_along phase_athwart] = trim_data(i, sphere, power, phase_along, phase_athwart);
     
     % And some data that trim_data doesn't do
     compensation = compensation(i);
@@ -980,11 +966,10 @@ function plot_angle_diagram(angle)
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function [sphere amp_sv power phase_along phase_athwart] = trim_data(i, sphere, amp_sv, power, phase_along, phase_athwart)
+function [sphere power phase_along phase_athwart] = trim_data(i, sphere, power, phase_along, phase_athwart)
     % A function to eliminate specified entries in a set of vectors.
     
     sphere = sphere(i,:);
-    amp_sv = amp_sv(:,i);
     power = power(:,i);
     phase_along = phase_along(:,i);
     phase_athwart = phase_athwart(:,i);
