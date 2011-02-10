@@ -130,9 +130,19 @@ function process_ex60_cal(rawfilenames, save_filename, ...
     % will be used when doing the 4-panel plot of sphere echoes
     p.onAxisTol = 0.3; % [degrees]
     
-    % All echoes within 0.0015 times the beam width will be considered to
+    % All echoes within p.onAxisFactor times the beam width will be considered to
     % be on-axis for the purposes of working out the on-axis gain.
-    p.onAxisPercent = 0.015; % [ratio]
+    p.onAxisFactor = 0.015; % [factor]
+    
+    % If there are less than p.minOnAxisEchos sphere echoes close to the
+    % beam centre (as calculated using p.onAxisFactor), use
+    % p.onAxisFactorExpanded instead.
+    p.minOnAxisEchoes = 6;
+    
+    % If insufficient echoes are found with p.onAxisFactor multiplied by
+    % the average of the fore/aft and port/stbd beamwidths,
+    % p.onAxisFactorExpanded will be used instead.
+    p.onAxisFactorExpanded = 5 * p.onAxisFactor; % [factor]
     
     % When calculating the RMS fit of the data to the Simrad beam pattern, only
     % consider echoes out to (rmsOutTo * beamwidth) degrees.
@@ -246,8 +256,9 @@ function process_ex60_cal(rawfilenames, save_filename, ...
         calParams.absorptioncoefficient = alpha/1000; % convert to dB/m
     end
 
-    % Get Sp version of the actual echo samples
-    data = readEKRaw_Power2Sp(data, calParams, 'KeepPower', true);
+    % Get Sp version of the actual echo samples with correction for true
+    % range to the sphere echo.
+    data = readEKRaw_Power2Sp(data, calParams, 'KeepPower', true, 'tvgcorrection', true);
     data = readEKRaw_ConvertAngles(data, calParams);
 
     % Keep the cal params around for later
@@ -394,13 +405,6 @@ function process_ex60_cal(rawfilenames, save_filename, ...
     data.pings.es60_error = data.pings.es60_error(:, data.cal.valid);
     data.cal.sphere_ts = sphere_ts;
 
-    % Correct Sp for range over and above that which is done by
-    % default by EchoLab. Here we subtract 4 samples in range from the TVG
-    % used for Sp.
-    dR_Sp = 4 * data.cal.params.soundvelocity * data.pings.sampleinterval / 2;
-    Sp_tvg_adjust = 2*alpha*dR_Sp + 40*log10(1-10.^(log10(dR_Sp) - log10(data.pings.range)));
-    data.pings.Sp = data.pings.Sp + repmat(Sp_tvg_adjust, 1, size(data.pings.Sp,2));
-    
     % And save the data to date.
     save(save_filename, 'data')
 
@@ -565,12 +569,13 @@ function process_data(data, p, scc_revision)
     phi = phi(i);
     
     % Calculate the mean_ts from echoes that are on-axis
-    on_axis = p.onAxisPercent * mean(faBW + psBW);
+    on_axis = p.onAxisFactor * mean(faBW + psBW);
     
-    % If there are no echoes found within onAxisPercent, make a note to enlarge the
-    % search angle.
+    % If there are no echoes found within onAxisFactor, make a note to use
+    % a larger factor.
     use_corrected = 0;
-    if isempty(find(phi < on_axis, 1))
+
+    if sum(find(phi < on_axis, 1)) <  p.minOnAxisEchoes
         use_corrected = 1;
     end
     
@@ -578,19 +583,18 @@ function process_data(data, p, scc_revision)
         i = find(phi < on_axis);
         mean_ts_on_axis = 20*log10(mean(10.^(sphere(i,1)/20)));
         std_ts_on_axis = std(sphere(i,1));
+        max_ts_on_axis = max(sphere(i,1));
     else
+        on_axis = p.onAxisFactorExpanded * mean(faBW + psBW);
         % Since we're using data from a much larger angle range, apply the beam
         % pattern compensation to avoid gross errors.
-        i = find(phi < on_axis*5);
+        i = find(phi < on_axis);
         mean_ts_on_axis = 20*log10(mean(10.^((sphere(i,1)+compensation(i))/20)));
         std_ts_on_axis = std(sphere(i,1)+compensation(i));
+        max_ts_on_axis = max(sphere(i,1)+compensation(i));
     end
     
-    if use_corrected == 0
-        oa = num2str(on_axis);
-    else
-        oa = num2str(on_axis*10);
-    end
+    oa = num2str(on_axis);
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Produce plots and output text
@@ -599,10 +603,11 @@ function process_data(data, p, scc_revision)
     disp(' ')
     disp(['Mean ts within ' oa ' deg of centre = ' num2str(mean_ts_on_axis) ' dB'])
     disp(['Std of ts within ' oa ' deg of centre = ' num2str(std_ts_on_axis) ' dB'])
+    disp(['Maximum TS within ' oa ' deg of centre = ' num2str(max_ts_on_axis) ' dB.'])
     disp(['Number of echoes within ' oa ' deg of centre = ' num2str(length(sphere(i,1)))])
     disp(['On axis TS from beam fitting = ' num2str(peak_ts) ' dB.'])
     disp(['The sphere ts is ' num2str(data.cal.sphere_ts) ' dB'])
-    outby = data.cal.sphere_ts - peak_ts;
+    outby = data.cal.sphere_ts - max_ts_on_axis; % was originally 'peak_ts'
     if outby > 0
         disp(['Hence Ex60 is reading ' num2str(outby) ' dB too low'])
     else
@@ -617,6 +622,7 @@ function process_data(data, p, scc_revision)
     disp(' ')
     
     % Do a contour plot to show the beam pattern
+    figure(1)
     clf
     [XI YI]=meshgrid(-trimTo:.1:trimTo,-trimTo:.1:trimTo);
     warning('off','MATLAB:griddata:DuplicateDataPoints');
@@ -629,8 +635,6 @@ function process_data(data, p, scc_revision)
     xlabel('Port/starboard angle (\circ)')
     ylabel('Fore/aft angle (\circ)')
     colorbar
-    disp('Press a key to add the sphere positions to this figure.')
-    pause
     
     % And plot the positions of the sphere. Note that there is a bug in matlab
     % where the point (.) marker doesn't have a continuous size range, so we
@@ -638,10 +642,9 @@ function process_data(data, p, scc_revision)
     hold on
     plot(sphere(:,2), sphere(:,3),'+','MarkerSize',2,'MarkerEdgeColor',[.5 .5 .5])
     axis equal
-    disp('Press any key to continue')
-    pause
     
     % Do a 3d plot of the uncorrected and corrected beampattern
+    figure(2)
     clf
     surf(XI, YI, ZI)
     warning('off','MATLAB:griddata:DuplicateDataPoints');
@@ -652,22 +655,22 @@ function process_data(data, p, scc_revision)
     zlabel('TS (dB re 1m^2)')
     xlabel('Port/stbd angle (\circ)')
     ylabel('Fore/aft angle (\circ)')
-    disp('Press any key to continue')
-    pause
     
     % Do a plot of the sphere range during the calibration
+    figure(3)
     clf
     plot(sphere(:,4))
     disp(['Mean sphere range = ' num2str(mean(sphere(:,4))) ...
         ' m, std = ' num2str(std(sphere(:,4))) ' m.'])
-    disp('The sphere range during the calibration.')
-    disp('Press any key to continue')
-    pause
+    title('Sphere range during the calibration.')
+    xlabel('Ping number')
+    ylabel('Sphere range (m)')
     
     % Do a plot of the compensated and uncompensated echoes at a selection of
     % angles, similar to what one can get from the Simrad calibration program
+    figure(4)
+    clf
     plotBeamSlices(sphere, outby, trimTo, faBW, psBW, peak_ts, p.onAxisTol)
-    disp('This figure is intended for including in a calibration report.')
     
     % Calculate the sa correction value informed by draft formulae
     % in Tody Jarvis's WGFAST calibration report.
