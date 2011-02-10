@@ -581,7 +581,7 @@ function process_data(data, p, scc_revision)
     
     if use_corrected == 0
         i = find(phi < on_axis);
-        mean_ts_on_axis = 20*log10(mean(10.^(sphere(i,1)/20)));
+        mean_ts_on_axis = 10*log10(mean(10.^(sphere(i,1)/10)));
         std_ts_on_axis = std(sphere(i,1));
         max_ts_on_axis = max(sphere(i,1));
     else
@@ -589,18 +589,17 @@ function process_data(data, p, scc_revision)
         % Since we're using data from a much larger angle range, apply the beam
         % pattern compensation to avoid gross errors.
         i = find(phi < on_axis);
-        mean_ts_on_axis = 20*log10(mean(10.^((sphere(i,1)+compensation(i))/20)));
+        mean_ts_on_axis = 10*log10(mean(10.^((sphere(i,1)+compensation(i))/10)));
         std_ts_on_axis = std(sphere(i,1)+compensation(i));
         max_ts_on_axis = max(sphere(i,1)+compensation(i));
     end
     
-    oa = num2str(on_axis);
-
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Produce plots and output text
     
     % The calibration results
     disp(' ')
+    oa = num2str(on_axis);
     disp(['Mean ts within ' oa ' deg of centre = ' num2str(mean_ts_on_axis) ' dB'])
     disp(['Std of ts within ' oa ' deg of centre = ' num2str(std_ts_on_axis) ' dB'])
     disp(['Maximum TS within ' oa ' deg of centre = ' num2str(max_ts_on_axis) ' dB.'])
@@ -629,7 +628,6 @@ function process_data(data, p, scc_revision)
     ZI=griddata(double(sphere(:,2)), double(sphere(:,3)), double(sphere(:,1)+outby),XI,YI);
     warning('on','MATLAB:griddata:DuplicateDataPoints');
     contourf(XI,YI,ZI)
-    disp('This figure is for a visual quality check of the beam pattern.')
     axis equal
     grid
     xlabel('Port/starboard angle (\circ)')
