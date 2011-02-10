@@ -397,9 +397,9 @@ function process_ex60_cal(rawfilenames, save_filename, ...
     % Correct Sp for range over and above that which is done by
     % default by EchoLab. Here we subtract an additional4 samples from Sp
     % from the range used in the TVG to match the output from the Lobe program.
-    dR_Sp = 4 * data.cal.params.soundvelocity * data.pings.sampleinterval / 2;
-    Sp_tvg_adjust = 2*alpha*dR_Sp + 40*log10(1-10.^(log10(dR_Sp) - log10(data.pings.range)));
-    data.pings.Sp = data.pings.Sp + repmat(Sp_tvg_adjust, 1, size(data.pings.Sp,2));
+    %dR_Sp = 4 * data.cal.params.soundvelocity * data.pings.sampleinterval / 2;
+    %Sp_tvg_adjust = 2*alpha*dR_Sp + 40*log10(1-10.^(log10(dR_Sp) - log10(data.pings.range)));
+    %data.pings.Sp = data.pings.Sp + repmat(Sp_tvg_adjust, 1, size(data.pings.Sp,2));
     
     % And save the data to date.
     save(save_filename, 'data')
@@ -415,12 +415,6 @@ end
 function process_data(data, p, scc_revision)
 
     % Extract and derive some data from the .raw files
-    sample_interval = double(data.cal.params.soundvelocity * data.pings.sampleinterval * 0.5); % [m]
-    
-    % These are no longer used, but kept here just in case they are wanted in
-    % the future.
-    %angle_factor = (data.config.anglesensitivityalongship + data.config.anglesensitivityathwartship)/2; % [dB]
-    %ba_db = data.config.equivalentbeamangle; % [dB re 1 steradian], two-way equivalent beam angle
     
     % Pick out the peak amplitudes for use later on, and discard the
     % rest. For power keep the 9 samples that surround the peak too.
@@ -557,7 +551,6 @@ function process_data(data, p, scc_revision)
     t1 = tan(sphere(:,2) * pi/180);
     t2 = tan(sphere(:,3) * pi/180);
     phi = atan(sqrt(t1.*t1 + t2.*t2)) * 180/pi;
-    theta = atan2(t1, t2) * 180/pi;
     
     % Calculate beam compensation for each echo
     compensation = simradBeamCompensation(faBW, psBW, sphere(:,3), sphere(:,2));
@@ -570,7 +563,6 @@ function process_data(data, p, scc_revision)
     % And some data that trim_data doesn't do
     compensation = compensation(i);
     phi = phi(i);
-    theta = theta(i);
     
     % Calculate the mean_ts from echoes that are on-axis
     on_axis = p.onAxisPercent * mean(faBW + psBW);
