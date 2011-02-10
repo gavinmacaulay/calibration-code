@@ -184,11 +184,11 @@ function process_ex60_cal(rawfilenames, save_filename, ...
             transceiver = 1;
         end
 
-        start_sample = round(2 * start_depth / (d.pings(transceiver).sampleinterval * d.pings(1).soundvelocity));
+        start_sample = round(2 * start_depth / (d.pings(transceiver).sampleinterval * c));
         if start_sample == 0
             start_sample = 1;
         end
-        stop_sample = round(2* stop_depth / (d.pings(1).sampleinterval * d.pings(transceiver).soundvelocity));
+        stop_sample = round(2* stop_depth / (d.pings(transceiver).sampleinterval * c));
 
         % And then read in the data for real, selecting just that between the
         % given start and end ranges.
@@ -394,7 +394,6 @@ function process_ex60_cal(rawfilenames, save_filename, ...
     data.pings.athwartship = double(data.pings.athwartship(:, data.cal.valid));
     data.cal.peak_pos = data.cal.peak_pos(data.cal.valid);
     data.pings.es60_error = data.pings.es60_error(:, data.cal.valid);
-    data.cal.start_sample = start_sample;
     data.cal.sphere_ts = sphere_ts;
 
     % Correct Sp and Sv for range over and above that which is done by
@@ -470,11 +469,10 @@ function process_data(data, p, scc_revision)
     
     % Convert the range from samples to metres. Range to the peak target
     % amplitude is counted from the peak of the transmit pulse, which is
-    % taken to occur half the transmit pulse length plus half the sample
-    % interval.
-    data.cal.range = (range + data.cal.start_sample) * sample_interval ...
-        - (data.pings.soundvelocity * data.pings.pulselength / 2 ...
-        + sample_interval/2);
+    % taken to occur at the range corresponding to half the transmit pulse
+    % length.
+    data.cal.range = data.pings.range(range) - ...
+        data.pings.pulselength * data.cal.params.soundvelocity/4;
     
     along = along';
     athwart = athwart';
