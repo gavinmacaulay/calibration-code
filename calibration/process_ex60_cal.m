@@ -433,7 +433,6 @@ function process_data(data, p, scc_revision)
     
     for j = 1:length(pp)
         if (4 < pp(j) && (pp(j) + 4) < size(data.pings.Sp,1))
-            %         try
             tts(j) = data.pings.Sp(pp(j), j);
             along(j) = data.pings.alongship(pp(j), j);
             athwart(j) = data.pings.athwartship(pp(j), j);
@@ -441,13 +440,6 @@ function process_data(data, p, scc_revision)
             phase_along(j,:) = data.pings.alongship(pp(j)-4:pp(j)+4, j);
             phase_athwart(j,:) = data.pings.athwartship(pp(j)-4:pp(j)+4, j);
             range(j) = pp(j);
-            %         catch ME
-            %             warning(num2str([pp(j), j]))
-            %             warning(num2str(size(data.pings.Sp)))
-            %             warning(num2str(size(data.pings.alongship)))
-            %             warning(num2str(size(data.pings.athwartship)))
-            %             warning(num2str(size(data.pings.power)))
-            %         end
         end
     end
     
