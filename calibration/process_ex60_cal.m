@@ -235,6 +235,7 @@ function process_ex60_cal(rawfilenames, save_filename, ...
             data.pings.alongship_e = [data.pings.alongship_e d.pings.alongship_e];
             data.pings.athwartship_e = [data.pings.athwartship_e d.pings.athwartship_e];
             data.pings.es60_error = [data.pings.es60_error d.pings.es60_error];
+	        data.pings.time = [data.pings.time d.pings.time];
         end
     end
 
