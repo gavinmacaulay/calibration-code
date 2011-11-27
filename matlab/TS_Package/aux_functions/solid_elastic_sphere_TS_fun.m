@@ -20,8 +20,6 @@ function    [para, out]=solid_elastic_sphere_TS_fun(freq_range,freq_spec,scale,n
 %%     T, P, S  = Temperature (deg C), Pressure (dbar), and Salinity (ppt)
 %%      ave_BW  = BW of average over frequency (percentage, %)
 
-addpath functions
-
 out_flag=1;				% modular of form function
 
 para.out_flag=out_flag;
