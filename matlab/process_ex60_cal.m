@@ -232,8 +232,10 @@ function process_ex60_cal(rawfilenames, save_filename, ...
             data = d;
         elseif i > 1
             data.pings.power = [data.pings.power d.pings.power];
-            data.pings.alongship_e = [data.pings.alongship_e d.pings.alongship_e];
-            data.pings.athwartship_e = [data.pings.athwartship_e d.pings.athwartship_e];
+            if isfield(data.pings, 'alongship_e')
+                data.pings.alongship_e = [data.pings.alongship_e d.pings.alongship_e];
+                data.pings.athwartship_e = [data.pings.athwartship_e d.pings.athwartship_e];
+            end
             data.pings.es60_error = [data.pings.es60_error d.pings.es60_error];
 	        data.pings.time = [data.pings.time d.pings.time];
         end
@@ -400,8 +402,10 @@ function process_ex60_cal(rawfilenames, save_filename, ...
 
     data.pings.Sp = double(data.pings.Sp(:, data.cal.valid));
     data.pings.power = double(data.pings.power(:, data.cal.valid));
-    data.pings.alongship = double(data.pings.alongship(:, data.cal.valid));
-    data.pings.athwartship = double(data.pings.athwartship(:, data.cal.valid));
+    if isfield(data.pings, 'alongship')
+        data.pings.alongship = double(data.pings.alongship(:, data.cal.valid));
+        data.pings.athwartship = double(data.pings.athwartship(:, data.cal.valid));
+    end
     data.cal.peak_pos = data.cal.peak_pos(data.cal.valid);
     data.pings.es60_error = data.pings.es60_error(:, data.cal.valid);
     data.cal.sphere_ts = sphere_ts;
