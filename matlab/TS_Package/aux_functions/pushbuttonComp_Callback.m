@@ -201,7 +201,7 @@ para.P=P;
 para.S=S;
 
 if para.proc_flag == 1
-    figure(1)
+    h(1) = figure;
     clf
     plot(out.freq,out.TS,'-b',out.freq,out.TS_ave,'-g',para.freq_spec,out.TS_spec,'hr','markersize',10,'linewidth',2)
     grid on
@@ -216,7 +216,7 @@ if para.proc_flag == 1
         fprintf('\t\t%d\t\t %8.3f\t %8.3f\n',para.freq_spec(i),out.TS_spec(i),out.TS_spec_ave(i));
     end
 else
-    figure(1)
+    h(1) = figure;
     clf
     subplot(1,2,1)
     plot(out.theta*180/pi,out.TS,'linewidth',1.5);
@@ -230,11 +230,15 @@ else
     xlabel('SCATTERING ANGLE (deg)','fontweight','bold','fontsize',14)
     title(sprintf('%6.2f (kHz)',out.freq),'fontweight','bold','fontsize',14)
     grid on
-    figure(2)
+    h(2) = figure;
     polar(out.theta,out.fm);
     grid on
     title('SCATTERING AMPLITUDE DIRECTIVITY','fontweight','bold','fontsize',14)
     xlabel(sprintf('%6.2f (kHz)',out.freq),'fontweight','bold','fontsize',14)
 end
+
+% Store the handles of the figures that were created, to be used to delete them later.
+handles.figuresCreated = h;
+guidata(hObject, handles)
 
 return

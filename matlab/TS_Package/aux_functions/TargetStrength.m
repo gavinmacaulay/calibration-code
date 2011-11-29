@@ -396,7 +396,18 @@ function pushbuttonQuit_Callback(hObject, eventdata, handles)
 % hObject    handle to pushbuttonQuit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-close all;
+
+% Close figures that were created
+try
+    delete(handles.figuresCreated);
+catch err
+    % catch the errors that result if the windows are already closed.
+end	
+
+% And then close the main window
+fig = handles.figure1;
+close(fig)
+
 return
 
 
