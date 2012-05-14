@@ -20,7 +20,7 @@ function    [para, out]=solid_elastic_sphere_TS_fun(freq_range,freq_spec,scale,n
 %%     T, P, S  = Temperature (deg C), Pressure (dbar), and Salinity (ppt)
 %%      ave_BW  = BW of average over frequency (percentage, %)
 
-out_flag=1;				% modular of form function
+out_flag=2;				% modular of form function
 
 para.out_flag=out_flag;
 
@@ -95,6 +95,8 @@ d=2*a*1000;
 if proc_flag == 1  % vs freq
     para_elastic=[n ka0 ka1 g hc hs theta];
     [ka, fm]=elastic_fs(proc_flag,scale,out_flag,para_elastic);
+    phase = unwrap(angle(fm)) * 180/pi;
+    fm = abs(fm);
     fm_ave=averaged_TS(ka,fm,para);
     RTS=20*log10(abs(fm));
     RTS_t1=interp1(ka,RTS,ka_t1);
@@ -111,6 +113,7 @@ if proc_flag == 1  % vs freq
 
 
     out.TS=TS;
+    out.phase=phase;
     out.TS_ave=TS_ave;
     out.TS_spec=TS_t1;
     out.TS_spec_ave=TS_t1_ave;

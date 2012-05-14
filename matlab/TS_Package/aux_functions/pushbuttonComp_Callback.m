@@ -203,14 +203,22 @@ para.S=S;
 if para.proc_flag == 1
     h(1) = figure;
     clf
-    plot(out.freq,out.TS,'-b',out.freq,out.TS_ave,'-g',para.freq_spec,out.TS_spec,'hr','markersize',10,'linewidth',2)
+    [ax, h1, h2] = plotyy(out.freq, out.TS, out.freq, out.phase);
+    set(h1, 'Color', 'b','markersize', 10, 'linewidth', 2)
+    set(h2, 'markersize', 10, 'linewidth', 2)
+    hold on
+    plot(ax(1), out.freq, out.TS_ave, '-g', 'markersize', 10, 'linewidth', 2)
+    plot(ax(1), para.freq_spec, out.TS_spec, 'hr', 'markersize', 10, 'linewidth', 2)
     grid on
     xlabel('FREQUENCY (kHz)','fontweight','bold','fontsize',14)
-    ylabel('TARGET STRENGTH (dB)','fontweight','bold','fontsize',14)
-    legend(['Theory (no ave)'],['Theory (with ave)'],4)
+    set(get(ax(1), 'YLabel'), 'String', 'TARGET STRENGTH (dB)','fontweight','bold','fontsize',14)
+    set(get(ax(2), 'YLabel'), 'String', 'TARGET PHASE (\circ)','fontweight','bold','fontsize',14)
+    legend(['Theory (no ave)'],['Theory (with ave)'], 4)
 %    text(freq0-2,out.TS_spec-2,freq_str,'color','r');
     title([out.t_str ' (' sprintf('%4.3g mm',D) ')'],'fontweight','bold','fontsize',14);
-    axis([freq_range min(-80,min(out.TS)-5) max(-30,max(out.TS)+5)])
+    axis(ax(1), [freq_range min(-80,min(out.TS)-5) max(-30,max(out.TS)+5)])
+    %axis(ax(2), [freq_range min(-80,min(out.TS)-5) max(-30,max(out.TS)+5)])
+    xlim(ax(2), freq_range)
     fprintf('\tfreq (kHz)\t\t TS\t\t TS (ave)\n')
     for i=1:length(freq_spec)
         fprintf('\t\t%d\t\t %8.3f\t %8.3f\n',para.freq_spec(i),out.TS_spec(i),out.TS_spec_ave(i));
