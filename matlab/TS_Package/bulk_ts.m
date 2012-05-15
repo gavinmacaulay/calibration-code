@@ -1,6 +1,7 @@
 %%
 % Ad-hoc code to produce bulk sphere TS estimates. Just alter the section
-% surrounded by %%%%%%%.
+% surrounded by %%%%%%% and for a different sphere material, the values in the 
+% para struct
 freq_range = [0.01 473.7720];
 scale = 1;
 n = 4000;
@@ -18,9 +19,6 @@ freq_spec = 333; % TS at this freq [kHz]
 ave_BW = 27.944; % bandwidth to average over [kHz]
 D = 10; % sphere diameter [mm]
 %%%%%%%
-freq_spec = 333;
-ave_BW = 27.944;
-D = 22;
 
 disp(['For c = ' num2str(cw) ' m/s'])
 for i = 1:length(cw)
