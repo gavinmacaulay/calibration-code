@@ -26,7 +26,7 @@ para.out_flag=out_flag;
 
 if ~isempty(T)
     cw=sw_svel(S,T,P);
-    rhow=sw_dens(S,T,P)/1000;
+    rhow=sw_dens(S,T,P);
 end
 
 
@@ -42,17 +42,17 @@ case 1
 %% properties of Tungsten carbide - CRC handbook of Chemistry and Physics, David R. Lite, editor in chief
 %%                                - 77th edition, 1996-1997, 14-36
  % tungsten carbide   rho=14.9  cc=6853  cs=4171
-%    rho=14.9;				% density 
+%    rho=14.9 * 1000;				% density 
 %    cc=6853;					% speed of compressional wave 
 %    cs=4171;					% speed of shear wave 
    t_str='Tungsten Carbide';
 case 2  % copper  rho=8.947  cc=4760   cs=2288.5
-%    rho=8.947;
+%    rho=8.947 * 1000;
 %    cc=4760;
 %    cs=2288.5;
    t_str='Copper';
 case 3  % aluminum  rho = 2.7  cc=6260   cs=3080
-%    rho=2.7;
+%    rho=2.7 * 1000;
 %    cc=6260;
 %    cs=3080;
    t_str='Aluminum';
@@ -65,6 +65,8 @@ otherwise   % specifying the material properties for other type of materials
 %    cs=para.cs;
    t_str='Other Material';
 end
+
+%disp(['Using water c = ' num2str(cw) ' m/s; rho = ' num2str(rhow) ' kg/m^-3'])
 
 g=para.rho/rhow;
 hc=para.cc/cw;

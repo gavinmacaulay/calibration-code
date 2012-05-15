@@ -22,7 +22,7 @@ function varargout = TargetStrength(varargin)
 
 % Edit the above text to modify the response to help TargetStrength
 
-% Last Modified by GUIDE v2.5 22-Nov-2011 10:28:55
+% Last Modified by GUIDE v2.5 15-May-2012 15:36:44
 
 % Begin initialization code - DO NOT EDIT
 
@@ -91,23 +91,23 @@ function popupmenuTargetType_Callback(hObject, eventdata, handles)
 
 switch get(handles.popupmenuTargetType,'value')
     case 1 % tungsten carbide  
-       rho=14.9;				% density 
+       rho=14.9 * 1000;				% density 
        cc=6853;					% speed of compressional wave 
        cs=4171;					% speed of shear wave  case 2
     case 2  % copper 
-       rho=8.947;
+       rho=8.947 * 1000;
        cc=4760;
        cs=2288.5;
     case 3  % aluminum
-       rho=2.7;
+       rho=2.7 * 1000;
        cc=6260;
        cs=3080;
     case 4 % tainless steel
-       rho=7.8;
+       rho=7.8 * 1000;
        cc=3.74*1500;
        cs=2.08*1500;
     otherwise
-       rho=7.8;
+       rho=7.8 * 1000;
        cc=3.74*1500;
        cs=2.08*1500;
       disp('OTHER')
@@ -581,3 +581,9 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
 end
 
 
+% --- If Enable == 'on', executes on mouse press in 5 pixel border.
+% --- Otherwise, executes on mouse press in 5 pixel border or over pushbuttonComp.
+function pushbuttonComp_ButtonDownFcn(hObject, eventdata, handles)
+% hObject    handle to pushbuttonComp (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
