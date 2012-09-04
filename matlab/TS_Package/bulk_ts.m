@@ -7,6 +7,7 @@
 %%%%%%%
 cw = 1450:5:1520; % water sound speed [m/s]
 rhow = 1025.3288; % water density [kg/m^3]
+%rhow = 1027
 % WC
 rhos = 14947; % density of sphere [m/s]
 cc = 6853; % compressional sound speed in sphere [m/s]
@@ -16,9 +17,15 @@ cs = 4171; % shear sound speed in sphere [m/s]
 %cc = 4760; % compressional sound speed in sphere [m/s]
 %cs = 2288.5; % shear sound speed in sphere [m/s]
 
-freq_spec = 38; % TS at this freq [kHz]
-ave_BW = [3.675 3.275 2.425 1.448 0.766]; % bandwidths to average over [kHz]
-D = 38.1; % sphere diameter [mm]
+freq_spec = 120; % TS at this freq [kHz]
+% For Simrad EK60. Bandwidths to average over [kHz]
+%ave_BW = [1.73 1.56 1.17 0.71 0.38]; % for 18 kHz pulse lengths (512, 1024, 2048, 4096, 8192)
+%ave_BW = [3.675 3.275 2.425 1.448 0.766]; % for 38 kHz pulse lengths (256, 512, 1024, 2048, 4096)
+ave_BW = [6.74 6.09 4.63 2.83 1.51]; % for 70 kHz pulse lengths (128, 256, 512, 1024, 2048)
+%ave_BW = [11.66 10.79 8.61 5.49 2.99]; % for 120 kHz pulse lengths (64, 128, 256, 512, 1024)
+%ave_BW = [18.54 15.55 10.51 5.90 3.05]; % for 200 kHz pulse lengths (64 128 256 512 1024)
+%ave_BW = [64 128 256 512 1024]; % for 333 kHz pulse lengths (64 128 256 512 1024)
+D = 22; % sphere diameter [mm]
 %%%%%%%
 
 freq_range = [0.01 473.7720];
@@ -31,6 +38,16 @@ T = [];
 P = [];
 S = [];
 
+disp(['For a ' num2str(D) ' mm diameter sphere.'])
+disp(['Sphere density = ' num2str(rhos) ' kg/m^3'])
+disp(['Sphere compressional sound speed = ' num2str(cc) ' m/s'])
+disp(['Sphere shear sound speed = ' num2str(cs) ' m/s'])
+
+disp(['Water density = ' num2str(rhow) ' kg/m^3'])
+disp(' ')
+
+disp(['TS at ' num2str(freq_spec) ' kHz'])
+disp(' ')
 
 disp(['c\bw ' num2str(ave_BW, '%.3f ')])
 for i = 1:length(cw)
