@@ -17,14 +17,14 @@ cs = 4171; % shear sound speed in sphere [m/s]
 %cc = 4760; % compressional sound speed in sphere [m/s]
 %cs = 2288.5; % shear sound speed in sphere [m/s]
 
-freq_spec = 120; % TS at this freq [kHz]
-% For Simrad EK60. Bandwidths to average over [kHz]
-%ave_BW = [1.73 1.56 1.17 0.71 0.38]; % for 18 kHz pulse lengths (512, 1024, 2048, 4096, 8192)
-%ave_BW = [3.675 3.275 2.425 1.448 0.766]; % for 38 kHz pulse lengths (256, 512, 1024, 2048, 4096)
-ave_BW = [6.74 6.09 4.63 2.83 1.51]; % for 70 kHz pulse lengths (128, 256, 512, 1024, 2048)
-%ave_BW = [11.66 10.79 8.61 5.49 2.99]; % for 120 kHz pulse lengths (64, 128, 256, 512, 1024)
-%ave_BW = [18.54 15.55 10.51 5.90 3.05]; % for 200 kHz pulse lengths (64 128 256 512 1024)
-%ave_BW = [64 128 256 512 1024]; % for 333 kHz pulse lengths (64 128 256 512 1024)
+% % For Simrad EK60. Bandwidths to average over [kHz]
+%spec = struct('freq', 18, 'BW', [1.73 1.56 1.17 0.71 0.38]); % for 18 kHz pulse lengths (512, 1024, 2048, 4096, 8192)
+%spec = struct('freq', 38, 'BW', [3.675 3.275 2.425 1.448 0.766]); % for 38 kHz pulse lengths (256, 512, 1024, 2048, 4096)
+%spec = struct('freq', 70, 'BW', [6.74 6.09 4.63 2.83 1.51]); % for 70 kHz pulse lengths (128, 256, 512, 1024, 2048)
+spec = struct('freq', 120, 'BW', [11.66 10.79 8.61 5.49 2.99]); % for 120 kHz pulse lengths (64, 128, 256, 512, 1024)
+%spec = struct('freq', 200, 'BW', 18.54 15.55 10.51 5.90 3.05]); % for 200 kHz pulse lengths (64 128 256 512 1024)
+%spec = struct('freq', 333, 'BW', [64 128 256 512 1024]); % for 333 kHz pulse lengths (64 128 256 512 1024)
+
 D = 22; % sphere diameter [mm]
 %%%%%%%
 
@@ -46,20 +46,20 @@ disp(['Sphere shear sound speed = ' num2str(cs) ' m/s'])
 disp(['Water density = ' num2str(rhow) ' kg/m^3'])
 disp(' ')
 
-disp(['TS at ' num2str(freq_spec) ' kHz'])
+disp(['TS at ' num2str(spec.freq) ' kHz'])
 disp(' ')
 
-disp(['c\bw ' num2str(ave_BW, '%.3f ')])
+disp(['c\bw ' num2str(spec.BW, '%.3f ')])
 for i = 1:length(cw)
     r = [];
-    for j = 1:length(ave_BW)
-        para = struct('rho', rhos, 'cc', cc, 'cs', cs, 'ave_value', ave_BW(j), ...
+    for j = 1:length(spec.BW)
+        para = struct('rho', rhos, 'cc', cc, 'cs', cs, 'ave_value', spec.BW(j), ...
             'ave_unit', 0, 'n', n, 'out_flag', 2, 'a', D/2/1000, 'cw', cw(i), ...
-            'rhow', rhow, 'freq_range', freq_range, 'freq_spec', freq_spec, ...
-            'ave_BW', ave_BW(j), 'scale', scale, 'target_index', target_index, ...
+            'rhow', rhow, 'freq_range', freq_range, 'freq_spec', spec.freq, ...
+            'ave_BW', spec.BW(j), 'scale', scale, 'target_index', target_index, ...
             'proc_flag', proc_flag, 'D', D, 'T', T, 'P', P, 'S', S);
 
-        [para,out]=solid_elastic_sphere_TS_fun(freq_range,freq_spec,scale,n,target_index,proc_flag,D,T,P,S,cw(i),rhow,ave_BW,para);
+        [para,out]=solid_elastic_sphere_TS_fun(freq_range,spec.freq,scale,n,target_index,proc_flag,D,T,P,S,cw(i),rhow,ave_BW,para);
         r = [r out.TS_spec_ave];
     end
     disp([num2str(cw(i)) ' ' num2str(r,'%.2f ')])
