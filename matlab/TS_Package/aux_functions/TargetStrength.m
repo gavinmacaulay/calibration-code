@@ -22,7 +22,7 @@ function varargout = TargetStrength(varargin)
 
 % Edit the above text to modify the response to help TargetStrength
 
-% Last Modified by GUIDE v2.5 15-May-2012 15:36:44
+% Last Modified by GUIDE v2.5 11-Nov-2012 20:24:31
 
 % Begin initialization code - DO NOT EDIT
 
@@ -587,3 +587,12 @@ function pushbuttonComp_ButtonDownFcn(hObject, eventdata, handles)
 % hObject    handle to pushbuttonComp (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+
+
+% --- Executes on button press in checkboxShowPhase.
+function checkboxShowPhase_Callback(hObject, eventdata, handles)
+% hObject    handle to checkboxShowPhase (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of checkboxShowPhase

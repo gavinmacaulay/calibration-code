@@ -54,6 +54,13 @@ if get(ch1(id),'Value') == 1
 else
    proc_flag=2;    % versus angle
 end
+%% Show phase or not
+id=find(strcmp(ch1_names, 'checkboxShowPhase') == 1);
+if get(ch1(id), 'Value') == 1
+    display_phase = true;
+else
+    display_phase = false;
+end
 
 %% Environmental Parameters
 id=find(strcmp(ch0_names,'uipanelEnvironmentalParameters') == 1);
@@ -223,6 +230,10 @@ if para.proc_flag == 1
     fprintf('\tfreq (kHz)\t\t TS\t\t TS (ave)\n')
     for i=1:length(freq_spec)
         fprintf('\t\t%d\t\t %8.3f\t %8.3f\n',para.freq_spec(i),out.TS_spec(i),out.TS_spec_ave(i));
+    end
+    if ~display_phase
+        set(ax(2), 'Visible', 'off')
+        set(h2, 'Visible', 'off')
     end
 else
     h(1) = figure;
