@@ -159,8 +159,6 @@ function process_ex60_cal(rawfilenames, save_filename, ...
     
     p.maximiseEchogram = false; % make the echogram window take up the whole screen
     
-    
-    
     % Test to stamp the output with (e.g., a version number). Only works
     % automatically if you keep this code in the subversion source code
     % control system. 
@@ -621,7 +619,11 @@ function process_data(data, p, scc_revision)
     
     % plot up the on-axis TS values
     figure('name', 'On-axis sphere TS')
-    boxplot(ts_values)
+    if exist('boxplot', 'file') % this lives in the Statistics toolbox, which not everyone will have
+        boxplot(ts_values)
+    else
+        hist(ts_values)
+    end
     ylabel('TS (dB re 1 m^2)')
     title(['On axis TS values for ' num2str(length(sphere(i,1))) ' targets'])
     
