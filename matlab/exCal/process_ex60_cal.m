@@ -148,6 +148,19 @@ function process_ex60_cal(rawfilenames, save_filename, ...
     % consider echoes out to (rmsOutTo * beamwidth) degrees.
     p.rmsOutTo = 0.5;
 
+    % What colour map to use for the echogram
+    p.colourmap = ''; % '' or 'EK500'
+    p.SpRange = [-72 -36];
+    
+    % What method to use when calculating the 'best' estimate of the on-axis
+    % sphere TS. Max of on-axis echoes, mean of on-axis echoes, or the peak of
+    % the fitted beam pattern.
+    p.onAxisMethod = 'mean'; % or 'mean', or 'beam fitting'
+    
+    p.maximiseEchogram = false; % make the echogram window take up the whole screen
+    
+    
+    
     % Test to stamp the output with (e.g., a version number). Only works
     % automatically if you keep this code in the subversion source code
     % control system. 
@@ -284,9 +297,18 @@ function process_ex60_cal(rawfilenames, save_filename, ...
     % the peak of the sphere echo) in the given bounds.
     warning('off','MATLAB:log:logOfZero')
 
+    figure('name', 'Choose sphere echoes...')
     hold off
     clf
     imagesc(data.pings.Sp)
+    colormap(getColormap(p.colourmap))
+    caxis([p.SpRange])
+    
+    if p.maximiseEchogram
+        screenSize = get(0, 'ScreenSize');
+        set(gcf, 'Position', [0 1 screenSize(3) screenSize(4)])
+    end
+    
     disp('Use the left mouse button to pick points that define a polygon on the echogram.')
     disp('Use the right mouse button to pick the last point and close the polygon.')
     hold on
@@ -368,6 +390,8 @@ function process_ex60_cal(rawfilenames, save_filename, ...
                 data.pings.Sp(:, limits(1):limits(2)) = -120; % a low value
                 data.cal.valid(limits(1):limits(2)) = false;
                 imagesc(data.pings.Sp)
+                colormap(getColormap(p.colourmap))
+                caxis([p.SpRange])
                 hold on
                 plot(data.cal.peak_pos, 'w')
                 axis(zoom_limits)
@@ -378,6 +402,8 @@ function process_ex60_cal(rawfilenames, save_filename, ...
                 data.pings.Sp(:, limits(1):limits(2)) = originalSp(:, limits(1):limits(2));
                 data.cal.valid(limits(1):limits(2)) = true;
                 imagesc(data.pings.Sp)
+                colormap(getColormap(p.colourmap))
+                caxis([p.SpRange])
                 hold on
                 plot(data.cal.peak_pos, 'w')
                 axis(zoom_limits)
@@ -578,18 +604,26 @@ function process_data(data, p, scc_revision)
     
     if use_corrected == 0
         i = find(phi < on_axis);
-        mean_ts_on_axis = 10*log10(mean(10.^(sphere(i,1)/10)));
-        std_ts_on_axis = std(sphere(i,1));
-        max_ts_on_axis = max(sphere(i,1));
+        ts_values = sphere(i,1);
+        mean_ts_on_axis = 10*log10(mean(10.^(ts_values/10)));
+        std_ts_on_axis = std(ts_values);
+        max_ts_on_axis = max(ts_values);
     else
         on_axis = p.onAxisFactorExpanded * mean(faBW + psBW);
         % Since we're using data from a much larger angle range, apply the beam
         % pattern compensation to avoid gross errors.
         i = find(phi < on_axis);
-        mean_ts_on_axis = 10*log10(mean(10.^((sphere(i,1)+compensation(i))/10)));
-        std_ts_on_axis = std(sphere(i,1)+compensation(i));
-        max_ts_on_axis = max(sphere(i,1)+compensation(i));
+        ts_values = sphere(i,1) + compensation(i);
+        mean_ts_on_axis = 10*log10(mean(10.^(ts_values/10)));
+        std_ts_on_axis = std(ts_values);
+        max_ts_on_axis = max(ts_values);
     end
+    
+    % plot up the on-axis TS values
+    figure('name', 'On-axis sphere TS')
+    boxplot(ts_values)
+    ylabel('TS (dB re 1 m^2)')
+    title(['On axis TS values for ' num2str(length(sphere(i,1))) ' targets'])
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Produce plots and output text
@@ -603,11 +637,19 @@ function process_data(data, p, scc_revision)
     disp(['Number of echoes within ' oa ' deg of centre = ' num2str(length(sphere(i,1)))])
     disp(['On axis TS from beam fitting = ' num2str(peak_ts) ' dB.'])
     disp(['The sphere ts is ' num2str(data.cal.sphere_ts) ' dB'])
-    outby = data.cal.sphere_ts - max_ts_on_axis; % was originally 'peak_ts'
+    
+    if strcmp(p.onAxisMethod, 'max')
+        outby = data.cal.sphere_ts - max_ts_on_axis;
+    elseif strcmp(p.onAxisMethod, 'mean')
+        outby = data.cal.sphere_ts - mean_ts_on_axis;
+    elseif strcmp(p.onAxisMethod, 'beam fitting')
+        outby = data.cal.sphere_ts - peak_ts;
+    end
+    
     if outby > 0
-        disp(['Hence Ex60 is reading ' num2str(outby) ' dB too low'])
+        disp(['Hence Ex60 is reading ' num2str(outby) ' dB too low (' p.onAxisMethod ' method).'])
     else
-        disp(['Hence Ex60 is reading ' num2str(abs(outby)) ' dB too high'])
+        disp(['Hence Ex60 is reading ' num2str(abs(outby)) ' dB too high (' p.onAxisMethod ' method).'])
     end
     
     disp(['So add ' num2str(-outby/2) ' dB to G_o'])
@@ -618,7 +660,7 @@ function process_data(data, p, scc_revision)
     disp(' ')
     
     % Do a contour plot to show the beam pattern
-    figure(1)
+    figure('name', 'Beam pattern contour plot')
     clf
     [XI YI]=meshgrid(-trimTo:.1:trimTo,-trimTo:.1:trimTo);
     warning('off','MATLAB:griddata:DuplicateDataPoints');
@@ -639,7 +681,7 @@ function process_data(data, p, scc_revision)
     axis equal
     
     % Do a 3d plot of the uncorrected and corrected beampattern
-    figure(2)
+    figure('name', '3D beam pattern (corrected and uncorrected)')
     clf
     surf(XI, YI, ZI)
     warning('off','MATLAB:griddata:DuplicateDataPoints');
@@ -652,7 +694,7 @@ function process_data(data, p, scc_revision)
     ylabel('Fore/aft angle (\circ)')
     
     % Do a plot of the sphere range during the calibration
-    figure(3)
+    figure('name', 'Sphere range')
     clf
     plot(sphere(:,4))
     disp(['Mean sphere range = ' num2str(mean(sphere(:,4))) ...
@@ -663,7 +705,7 @@ function process_data(data, p, scc_revision)
     
     % Do a plot of the compensated and uncompensated echoes at a selection of
     % angles, similar to what one can get from the Simrad calibration program
-    figure(4)
+    figure('name', 'Beam slice plot')
     clf
     plotBeamSlices(sphere, outby, trimTo, faBW, psBW, peak_ts, p.onAxisTol)
     
@@ -963,4 +1005,27 @@ function [sphere power phase_along phase_athwart] = trim_data(i, sphere, power, 
     power = power(:,i);
     phase_along = phase_along(:,i);
     phase_athwart = phase_athwart(:,i);
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function cmap = getColormap(name)
+
+    if strcmp(name, 'EK500')
+        cmap = [255   255   255  % white
+                159   159   159    % light grey
+                95    95    95     % grey
+                0     0   255      % dark blue
+                0     0   127      % blue
+                0   191     0      % green
+                0   127     0      % dark green
+                255   255     0    % yellow
+                255   127     0    % orange
+                255     0   191    % pink
+                255     0     0    % red
+                166    83    60    % light brown
+                120    60    40]./255;  % dark brown
+    else
+        cmap = colormap; % the default
+    end
+    
 end
