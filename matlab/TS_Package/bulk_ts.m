@@ -51,13 +51,13 @@ disp(' ')
 
 disp(['c\bw ' num2str(spec.BW, '%.3f ')])
 for i = 1:length(cw)
-    r = [];
+    r = zeros(1, length(spec.BW));
     for j = 1:length(spec.BW)
         para = struct('rho', rhos, 'cc', cc, 'cs', cs, 'ave_value', spec.BW(j), 'ave_unit', 0);
 
         [para,out]=solid_elastic_sphere_TS_fun(freq_range,spec.freq,scale,n,target_index,proc_flag,D,T,P,S,cw(i),rhow,para);
 
-        r = [r out.TS_spec_ave];
+        r(j) = out.TS_spec_ave;
     end
     disp([num2str(cw(i)) ' ' num2str(r,'%.2f ')])
 end

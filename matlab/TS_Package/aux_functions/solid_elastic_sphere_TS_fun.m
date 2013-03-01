@@ -88,7 +88,7 @@ function [para, out] = solid_elastic_sphere_TS_fun(freq_range, ...
         ka0=2*pi*freq_range(1)*1000*a/cw;
         ka1=2*pi*freq_range(2)*1000*a/cw;
         ka0_t1=2*pi*freq*1000*a(1)/cw;
-        indx1=find( ka0_t1 >= ka0 & ka0_t1 <= ka1);
+        indx1=ka0_t1 >= ka0 & ka0_t1 <= ka1;
         ka_t1=ka0_t1(indx1);
     else
         th0=0;
@@ -100,7 +100,6 @@ function [para, out] = solid_elastic_sphere_TS_fun(freq_range, ...
         end
     end
     
-    d=2*a*1000;
     if proc_flag == 1  % vs freq
         para_elastic=[n ka0 ka1 g hc hs theta];
         [ka, fm]=elastic_fs(proc_flag,scale,out_flag,para_elastic);
