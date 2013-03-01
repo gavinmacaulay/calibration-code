@@ -1,5 +1,5 @@
 function [para, out] = solid_elastic_sphere_TS_fun(freq_range, ...
-        freq_spec,scale,n,target_index,proc_flag,D,T,P,S,cw,rhow,ave_BW,para)
+        freq_spec,scale,n,target_index,proc_flag,D,T,P,S,cw,rhow,para)
     % function to compute the target strength (backscattering) of an elastic sphere
     %
     %    freq_ange = [start_frequency  end_frequency] in kHz
@@ -13,12 +13,16 @@ function [para, out] = solid_elastic_sphere_TS_fun(freq_range, ...
     %              = 3   aluminum
     %              = 4   stainless Steel
     %              = 5   given material properties
+    %    proc_flag = 1 produce results as a function of frequency
+    %              = 2 produce results as a function of angle
     %    para      = physical properties of sphere
     %        .rho  = density  (g/cm^3)
     %        .cc   = compressional wave speed (m/s)
     %        .cs   = shear wave speed (m/s)
     %           D  = diameter of the sphere in mm
     %     T, P, S  = Temperature (deg C), Pressure (dbar), and Salinity (ppt)
+    %           cw = sound speed in water (m/s), not used if T is null
+    %         rhow = density of water (kg/m^3), not used if T is null
     %      ave_BW  = BW of average over frequency (percentage, %)
     
     out_flag=2;				% modular of form function

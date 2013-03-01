@@ -193,7 +193,7 @@ else
 end
 kHz=' kHz';
 freq_str=[num2str(freq0) kHz(ones(size(freq0,1),1),:)];
-[para,out]=solid_elastic_sphere_TS_fun(freq_range,freq_spec,scale,n,target_index,proc_flag,D,T,P,S,cw,rhow,ave_BW,para);
+[para,out]=solid_elastic_sphere_TS_fun(freq_range,freq_spec,scale,n,target_index,proc_flag,D,T,P,S,cw,rhow,para);
 
 para.freq_range=freq_range;
 para.freq_spec=freq_spec;
