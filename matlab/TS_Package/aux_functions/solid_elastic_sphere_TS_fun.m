@@ -20,10 +20,14 @@ function [para, out] = solid_elastic_sphere_TS_fun(freq_range, ...
     %        .cc   = compressional wave speed (m/s)
     %        .cs   = shear wave speed (m/s)
     %           D  = diameter of the sphere in mm
-    %     T, P, S  = Temperature (deg C), Pressure (dbar), and Salinity (ppt)
-    %           cw = sound speed in water (m/s), not used if T is null
-    %         rhow = density of water (kg/m^3), not used if T is null
+    %     T, P, S  = Temperature (deg C), Pressure (dbar), and Salinity (ppt) (see below)
+    %           cw = sound speed in water (m/s), used if T is null (see below)
+    %         rhow = density of water (kg/m^3), used if T is null (see below)
     %      ave_BW  = BW of average over frequency (percentage, %)
+    %
+    % If T, P, and S are given, the sound speed and density of the water is
+    % calculated using them. If T is null, it is expected that sound speed and
+    % density of water are given in the cw and rhow parameters.
     
     out_flag=2;				% modular of form function
     
