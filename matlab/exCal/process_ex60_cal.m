@@ -155,7 +155,7 @@ function process_ex60_cal(rawfilenames, save_filename, ...
     % What method to use when calculating the 'best' estimate of the on-axis
     % sphere TS. Max of on-axis echoes, mean of on-axis echoes, or the peak of
     % the fitted beam pattern.
-    p.onAxisMethod = 'mean'; % or 'mean', or 'beam fitting'
+    p.onAxisMethod = 'mean'; % choices of 'max', 'mean', or 'beam fitting'
     
     p.maximiseEchogram = false; % make the echogram window take up the whole screen
     
