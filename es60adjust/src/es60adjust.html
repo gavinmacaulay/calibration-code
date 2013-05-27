@@ -1,0 +1,218 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="CONTENT-TYPE" content=
+"text/html; charset=us-ascii">
+<title></title>
+<meta name="AUTHOR" content="Tim Ryan">
+<meta name="CREATED" content="20070405;10470000">
+<meta name="CHANGEDBY" content="Gordon Keith">
+<meta name="CHANGED" content="20070405;11040000">
+</head>
+<body>
+<h1>1. ES60 triangle wave removal</h1>
+<h2>1.1 Overview</h2>
+<p>This program removes the
+"triangle wave" error added to Simrad ES60 data. This error has a
+triangle wave pattern with peak to peak value of 1 dB and period of
+2721 pings This program has two main functions. Firstly it provides
+tools to assist the user in establishing where the error on the
+first ping is at in relation to the 2721 ping error cycle. Secondly
+with the location in the error sequence established, the program
+can then progress through each ping, adding a value equal to the
+mirror image of the triangle wave error. The output is written to a
+new file. Note: The program can correct for multiple continuous
+files but any breaks in logging or sounder resets will break the
+pattern of the error, so each group must be run through the program
+seperately.<br>
+</p>
+<h2>1.2 Basic Operation</h2>
+<p>Running the program requires
+four steps:</p>
+<ol>
+<li>
+<p>select input files</p>
+</li>
+<li>
+<p>specify the ping number of the
+first ping</p>
+</li>
+<li>
+<p>specify the output files</p>
+</li>
+<li>
+<p>run</p>
+</li>
+</ol>
+<h4>Select files</h4>
+<p>Use the <code>Add</code> button to select the group
+of files to process. You can use the <code>Up</code> and <code>Down</code> buttons to ensure files are in the correct
+order (order does matter).</p>
+<h4>Enter ping number</h4>
+<p>Enter the ping number for the
+first ping in the first data file. See Section 1.3 for Help for
+determining the ping number can be found below.</p>
+<h4>Specify output files</h4>
+<p>Select the output directory and
+filename affix for the output files. The filename affix
+"<code>Append to
+filename</code>" is added to the name of each file
+immediately prior to the <code>.raw</code> extension. The affix may be left blank if
+the input and output directories are different. Use of an affix is
+strongly recommended unless you have really good procedures in
+place for keeping track of what files have undergone what
+processing.</p>
+<h4>Run</h4>
+<p>Click on the <code>Run</code> button to process the data.
+The program will process all the data files in the input, in the
+order given, with the ping number carrying over from one file to
+the next. Any selection (highlighting) of files is ignored.</p>
+<h2>1.3 Finding the first ping</h2>
+<p>Identifying the ping number of
+the first ping in the series of files is the most difficult step,
+and not easily automated. The program does provide a variety of
+tools to help in this process. These tools are accessed via the
+<code>Info</code> button.<br>
+The tools can be used in a variety of ways as detailed below, from
+simplest to most complicated.</p>
+<h4>Accepting the program's guess</h4>
+<p>The program uses a set of
+defaults to come up with a best guess of the first ping number.
+This is calculated separately for each data channel.<br>
+Where the program came up with a guess, a button containing the
+ping number is included near the middle of the Info displayed.
+Click on this button to copy this number to the <code>First ping number</code> field in the
+main window.</p>
+<h4>Selecting the minimum or maximum
+value graphically</h4>
+<p>A small plot of the first 2721
+pings is displayed for each data channel. Clicking on this plot
+will bring it up in a larger size.<br>
+The plot contains:</p>
+<ul>
+<li>
+<p>Blue points representing the
+sample value for that ping.</p>
+</li>
+<li>
+<p>A black horizontal line through
+zero</p>
+</li>
+<li>
+<p>A red wave line shows the
+program's best guess of the triangle wave.</p>
+</li>
+<li>
+<p>Black vertical lines mark the
+maximum, minimum and zero points of the best guess.</p>
+</li>
+<li>
+<p>A red vertical line denotes the
+end of the first data file.</p>
+</li>
+</ul>
+<p>Often it will be straightforward
+to visually identify the maximum and minimum points of the triangle
+wave. If so, click on the maximum or minimum points of the wave
+(above the zero line for maximum, below the zero line for minimum).
+The first ping number corresponding to that max/min will appear in
+a button in the lower right corner. Click on the button to copy
+this number to the <code>First ping
+number</code> field in the main window.</p>
+<h4>Other searches</h4>
+<p>You can change the parameters
+used to search for the first ping and click on the search button. A
+new search result will appear in the middle of the window
+(including plot) and you may use its results as above. The search
+parameters, roughly in order of usefulness, are:</p>
+<table border="0" cellpadding="1" cellspacing="0">
+<tr>
+<td>
+<p>Search parameters</p>
+</td>
+</tr>
+<tr>
+<td>
+<p>First sample</p>
+</td>
+<td>
+<p>Select the start of the range of
+samples to look at. Usually 0.</p>
+</td>
+</tr>
+<tr>
+<td>
+<p>Last sample</p>
+</td>
+<td>
+<p>Normally the ES60 has a ring down
+in the first few samples before any real data appears. This section
+of the data is the best to use to attempt to locate the triangle
+wave as it is normally clearly visible on top of a constant value.
+The length of this ring down may vary between instruments but is
+frequently 4 samples. If the data is noisy try reducing this value.
+If the data is still noisy when this value is 1 you may need to try
+using a large block to try and average out the noise (good luck,
+you'll need it)</p>
+</td>
+</tr>
+<tr>
+<td>
+<p>Average window</p>
+</td>
+<td>
+<p>Number of pings to average over, to
+try and average out noise. Default 1.</p>
+</td>
+</tr>
+<tr>
+<td>
+<p>Detection window</p>
+</td>
+<td>
+<p>Minimum is detected by a minimum
+value of a sum of n models centered on this model. Used to reject
+insignificant outliers near the real minimum. Default 5.</p>
+</td>
+</tr>
+<tr>
+<td>
+<p>Pings</p>
+</td>
+<td>
+<p>Number of pings to include in
+search. This must be greater than 1360 (half wave) to get a
+meaningful result. Default 2721 (full wave).</p>
+</td>
+</tr>
+<tr>
+<td>
+<p>Skip pings</p>
+</td>
+<td>
+<p>Ignore the first n pings. When the
+ES60 is first powered up the initial pings often have lower sample
+strength while the electronics warms up, this allows you to skip
+those pings (but in that case the first ping number is 0
+anyway).</p>
+</td>
+</tr>
+<tr>
+<td>
+<p>Algorithm</p>
+</td>
+<td>
+<p>Weighting applied to deviations
+from modelled values to find minimum difference. Square uses least
+squares. This setting doesn't seem to make much difference, but it
+hasn't been removed yet. Default Linear.</p>
+</td>
+</tr>
+</table>
+<hr>
+<p>Authors note: This help file is
+held as es60adjust.html in the es60adjust.jar file. Any
+contributions of improvements, clarifications or suggestions are
+welcome. Feel free to send updated es60adjust.html files to
+gordon.keith@csiro.au for inclusion in future distributions.</p>
+</body> </html>

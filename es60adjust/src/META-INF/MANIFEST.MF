@@ -1,0 +1,4 @@
+Manifest-Version: 0.0
+Main-Class: au.csiro.marine.echo.ES60Adjust
+Created-By: 1.5.0 (Free Software Foundation, Inc.)
+
