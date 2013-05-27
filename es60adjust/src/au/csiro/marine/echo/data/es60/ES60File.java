@@ -56,7 +56,7 @@ import java.util.Date;
 import java.util.Vector;
 import java.util.logging.Logger;
 
-import au.csiro.marine.util.TrackPoint;
+//import au.csiro.marine.util.TrackPoint;
 
 /**
     ES60File is a class representing the data held in an ES60 .raw or .out file.
@@ -729,7 +729,9 @@ public void open(boolean index)
 					   ES60NMEA point = es60.readPoint(0);
 					   while (point != null) {
 						   if (point.hasPos()) {
+						   /*
 							   out.println(new TrackPoint(point.getLongitude(), point.getLatitude(), point.getTime()).toGpsCsvString());
+							   */
 						   }
 						   point = es60.readPoint(0);
 					   }
