@@ -2,7 +2,7 @@
 % dPn(cos(theta))= dPn (n,x,flag,Pn);
 %  flag = 0: compute Pn(x,n)
 %       = 1: do not compute Pn, with Pn as input
-function      ans=dPn(n,x,flag,pn)
+function      dp=dPn(n,x,flag,pn)
 
 if nargin < 3
   flag=0;
@@ -35,4 +35,4 @@ end
 
 
 %% compute 
-ans=dpn(:,n+1);
+dp=dpn(:,n+1);
