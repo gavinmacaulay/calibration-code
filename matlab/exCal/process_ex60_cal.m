@@ -301,6 +301,8 @@ function process_ex60_cal(rawfilenames, save_filename, ...
     imagesc(data.pings.Sp)
     colormap(getColormap(p.colourmap))
     caxis([p.SpRange])
+    xlabel('Pings')
+    ylabel('Samples')
     
     if p.maximiseEchogram
         screenSize = get(0, 'ScreenSize');
@@ -452,24 +454,27 @@ function process_data(data, p, scc_revision)
     % Pick out the peak amplitudes for use later on, and discard the
     % rest. For power keep the 9 samples that surround the peak too.
     pp = data.cal.peak_pos;
-    tts = zeros(size(pp));
-    range = zeros(length(pp),1);
-    along = zeros(size(pp))';
-    athwart = zeros(size(pp))';
-    power = zeros(length(pp),9);
-    phase_along = zeros(length(pp),9);
-    phase_athwart = zeros(length(pp),9);
+    % exclude echoes that are too close to the start or end of the sample
+    % data (+/-4 samples above/below the peak are required for later
+    % processing).
+    inRange = find(4 < pp & (pp + 4) < size(data.pings.Sp,1));
+    tts = zeros(size(inRange));
+    range = zeros(length(inRange),1);
+    along = zeros(size(inRange))';
+    athwart = zeros(size(inRange))';
+    power = zeros(length(inRange),9);
+    phase_along = zeros(length(inRange),9);
+    phase_athwart = zeros(length(inRange),9);
     
-    for j = 1:length(pp)
-        if (4 < pp(j) && (pp(j) + 4) < size(data.pings.Sp,1))
-            tts(j) = data.pings.Sp(pp(j), j);
-            along(j) = data.pings.alongship(pp(j), j);
-            athwart(j) = data.pings.athwartship(pp(j), j);
-            power(j,:) = data.pings.power(pp(j)-4:pp(j)+4, j);
-            phase_along(j,:) = data.pings.alongship(pp(j)-4:pp(j)+4, j);
-            phase_athwart(j,:) = data.pings.athwartship(pp(j)-4:pp(j)+4, j);
-            range(j) = pp(j);
-        end
+    for i = 1:length(inRange)
+        j = inRange(i);
+        tts(i) = data.pings.Sp(pp(j), j);
+        along(i) = data.pings.alongship(pp(j), j);
+        athwart(i) = data.pings.athwartship(pp(j), j);
+        power(i,:) = data.pings.power(pp(j)-4:pp(j)+4, j);
+        phase_along(i,:) = data.pings.alongship(pp(j)-4:pp(j)+4, j);
+        phase_athwart(i,:) = data.pings.athwartship(pp(j)-4:pp(j)+4, j);
+        range(i) = pp(j);
     end
     
     data.cal.ts = tts;
@@ -497,8 +502,8 @@ function process_data(data, p, scc_revision)
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Apply an ES60 triangle wave correction to the data
-    amp_ts = amp_ts - data.pings.es60_error';
-    power = power - repmat(data.pings.es60_error, 9, 1);
+    amp_ts = amp_ts - data.pings.es60_error(inRange)';
+    power = power - repmat(data.pings.es60_error(inRange), 9, 1);
     
     % And merge some info into one matrix for convenience
     sphere = [amp_ts athwart along data.cal.range];
@@ -508,7 +513,7 @@ function process_data(data, p, scc_revision)
     original.power = power;
     
     % The amp_ts and range data are now in sphere
-    clear amp_ts range error
+    clear amp_ts range error inRange
         
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Remove any echoes that are likely to be noisy or wrong
