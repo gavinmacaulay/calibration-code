@@ -601,7 +601,7 @@ function process_data(data, p, scc_revision)
     % a larger factor.
     use_corrected = 0;
 
-    if sum(find(phi < on_axis, 1)) <  p.minOnAxisEchoes
+    if numel(find(phi < on_axis)) <  p.minOnAxisEchoes
         use_corrected = 1;
     end
     
