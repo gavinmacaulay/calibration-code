@@ -71,14 +71,14 @@ id=findobj('Tag','radio_TSD');
 
 if get(id,'value')
     %% Temperature
-    id=find(strcmp(ch1_names,'editTemp') == 1);
-    T=str2num(get(ch1(id),'String'));
+    id = findobj('Tag', 'editTemp');
+    T=str2num(get(id,'String'));
     %% Salinity
-    id=find(strcmp(ch1_names,'editSal') == 1);
-    S=str2num(get(ch1(id),'String'));
+    id = findobj('Tag', 'editSal');
+    S=str2num(get(id,'String'));
     %% Salinity
-    id=find(strcmp(ch1_names,'editDep') == 1);
-    P=str2num(get(ch1(id),'String'));
+    id = findobj('Tag', 'editDep');
+    P=str2num(get(id,'String'));
     cw=[];
     rhow=[];  
 else
