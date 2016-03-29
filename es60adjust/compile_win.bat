@@ -9,7 +9,7 @@ REM  can be executed as any normal Java program.
 REM
 REM Change the value of JAVABIN to suit the installed location of your JDK.
 
-SET JAVABIN="c:\program files\java\jdk1.7.0_21\bin"
+SET JAVABIN="C:\Program Files\Java\jdk1.8.0_65\bin"
 
 cd src
 
