@@ -220,7 +220,7 @@ if para.proc_flag == 1
     xlabel('FREQUENCY (kHz)','fontweight','bold','fontsize',14)
     set(get(ax(1), 'YLabel'), 'String', 'TARGET STRENGTH (dB)','fontweight','bold','fontsize',14)
     set(get(ax(2), 'YLabel'), 'String', 'TARGET PHASE (\circ)','fontweight','bold','fontsize',14)
-    legend('Theory (no ave)', 'Theory (with ave)', 4)
+    legend('Theory (no ave)', 'Theory (with ave)', 'Location', 'NorthEast')
 %    text(freq0-2,out.TS_spec-2,freq_str,'color','r');
     title([out.t_str ' (' sprintf('%4.3g mm',D) ')'],'fontweight','bold','fontsize',14);
     axis(ax(1), [freq_range min(-80,min(out.TS)-5) max(-30,max(out.TS)+5)])
