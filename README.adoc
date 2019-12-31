@@ -1,0 +1,26 @@
+= Fisheries Acoustics Calibration Software
+
+This site contains software for the calibration of echosounders. Associated infrastructure provides source code revision control, issue tracking, and package distribution.
+
+== ES60Adjust
+The ES60Adjust package is a program to correct for the triangle wave error in ES60 echosounders.
+
+The package was written by Gordon Keith of the CSIRO, Hobart, Australia in the Java programming language.
+
+A runnable Java file is available, as well as the source code.
+
+== TS_Package
+
+The TS_Package is an easy to use Matlab-based GUI for calculating the target strength of elastic spheres, as used for the calibration of quantitative echosounders and sonars. Documentation is included.
+
+The package was written by Dezhang Chu of the Northwest Fisheries Science Centre, NOAA Fisheries Service, Seattle, USA.
+
+== ExCal
+
+The ExCal package is a collection of Matlab code that provides the means to estimate calibration parameters for some Simrad echosounders (EK60, ES60, ES70, aka Ex systems). It reads Simrad .raw files, requires the user to manually select sphere echoes from an echogram and then estimates the calibration parameters.
+
+An example of how to run the software is provided in the do_cal.m file, which is included in the package. Further documentation is included in the various files.
+
+The package requires the EchoLab package (for reading Simrad data files) and the subplot1 package (available from the http://www.mathworks.com/matlabcentral/fileexchange/9694-an-improved-subplot-function[Matlab File Exchange]).
+
+The package was written by Gavin Macaulay while employed at New Zealand's National Institute of Water and Atmospheric Research (NIWA). NIWA has approved the release of this code for use by the fisheries acoustics community, while Gavin continues to maintain and coordinate enhancements to the code.
